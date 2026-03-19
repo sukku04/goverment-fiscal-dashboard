@@ -511,7 +511,7 @@
   <!-- Status -->
   <div class="status-bar">
     <div class="status-dot" id="statusDot"></div>
-    <span id="statusText">연도 선택 → 재정 구분 선택 → 데이터 조회</span>
+    <span id="statusText">① 연도 탐지 → ② 연도 선택 → ③ 재정 구분 선택 → ④ 데이터 조회</span>
     <span style="margin-left:auto;display:flex;gap:8px;align-items:center">
       <span id="debugBadge" style="font-size:10px;padding:2px 7px;border-radius:4px;background:rgba(240,136,62,0.15);color:var(--accent3);border:1px solid rgba(240,136,62,0.3);cursor:pointer"
             onclick="toggleDebug()" title="클릭하면 콘솔 로그 ON/OFF">🐛 디버그 ON</span>
@@ -1007,12 +1007,15 @@ async function fetchData() {
           <div class="empty-icon">🔍</div>
           <div class="empty-title">조회 결과 0건</div>
           <div class="empty-sub">
-            <code style="background:var(--surface2);padding:2px 7px;border-radius:3px">data/</code> 폴더에 JSON 파일이 없습니다.<br><br>
-            <strong>GitHub Actions 실행 방법:</strong><br>
-            1. 저장소 → <strong>Actions</strong> 탭<br>
-            2. <strong>재정데이터 자동 수집</strong> 선택<br>
-            3. <strong>Run workflow</strong> 클릭<br><br>
-            또는 🎭 샘플 데이터로 UI를 먼저 확인해보세요
+            아직 수집된 데이터가 없습니다.<br><br>
+            <strong style="color:var(--accent)">GitHub Actions로 데이터 수집 필요:</strong><br>
+            <div style="text-align:left;display:inline-block;margin-top:8px;line-height:2">
+              1. 저장소 → <strong>Actions</strong> 탭 이동<br>
+              2. 왼쪽 <strong>재정데이터 자동 수집</strong> 클릭<br>
+              3. 우측 <strong>Run workflow</strong> → <strong>Run workflow</strong> 클릭<br>
+              4. ✅ 완료 후 이 페이지 새로고침
+            </div><br>
+            <span style="color:var(--muted)">또는 아래 🎭 샘플 데이터로 UI 미리 확인</span>
           </div>
         </div>`;
     } else {
@@ -1054,8 +1057,13 @@ async function fetchDataFile(govType, dataType, year) {
 async function fileExists(govType, dataType, year) {
   try {
     const filename = `${DATA_BASE}${govType}_${dataType}_${year}.json`;
-    const res = await fetch(filename, { method: 'HEAD', signal: AbortSignal.timeout(5000) });
-    return res.ok;
+    // cache:no-store로 최신 상태 확인, 404는 정상 처리 (오류 아님)
+    const res = await fetch(filename, {
+      method: 'HEAD',
+      cache: 'no-store',
+      signal: AbortSignal.timeout(5000)
+    });
+    return res.ok;  // 200이면 true, 404면 false
   } catch { return false; }
 }
 
@@ -1078,8 +1086,8 @@ async function fetchOne(apiKey, epKey, year) {
   const res = await fetch(filename, { signal: AbortSignal.timeout(10000) });
   if (!res.ok) {
     if (res.status === 404) {
-      // 파일 없음 = 해당 연도/구분 데이터 미수집 → 빈 배열 반환 (오류 아님)
-      console.warn(`[fetchOne] 데이터 파일 없음: ${filename}`);
+      // 파일 없음 = GitHub Actions 미실행 or 해당 연도 데이터 없음 → 빈 배열 (오류 아님)
+      if (state.debugMode) console.info(`[fetchOne] 파일 미존재 (정상): ${filename}`);
       return [];
     }
     throw new Error(`파일 로드 실패: ${filename} (HTTP ${res.status})`);
@@ -1828,13 +1836,13 @@ function getApiKey() {
 window.onload = function() {
   init();
 
-  // ── 저장된 키 복원: localStorage → 자동으로 저장됨 뷰 전환
+  // ── 저장된 키 복원
   const saved = loadSavedKey();
   if (saved) {
     document.getElementById('apiKey').value = saved;
     showKeySavedView(saved);
-    setStatus('loading', '저장된 인증키로 연도 탐지 중...');
-    setTimeout(detectAvailableYears, 500);
+    // 자동 탐지 제거 — data/ 파일 존재 여부로만 탐지 (수동 버튼)
+    setStatus('', 'data/ 폴더의 JSON 파일을 읽습니다. 연도 탐지 버튼을 눌러 가용 연도를 확인하세요.');
   } else {
     showKeyInputView();
   }
