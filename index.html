@@ -1,0 +1,1739 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>재정예결산 분석 대시보드 | 기능별 세출 현황</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --surface2: #1f2937;
+    --border: #30363d;
+    --accent: #3fb950;
+    --accent2: #58a6ff;
+    --accent3: #f0883e;
+    --muted: #8b949e;
+    --text: #e6edf3;
+    --text2: #c9d1d9;
+    --danger: #f85149;
+    --warning: #e3b341;
+    --gov-central: #58a6ff;
+    --gov-local: #3fb950;
+    /* ── 재정 흐름 단계 컬러 ── */
+    --c-org:    #58a6ff;
+    --c-supple: #f0883e;
+    --c-curr:   #d2a8ff;
+    --c-exec:   #3fb950;
+    --c-settle: #e3b341;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Noto Sans KR', sans-serif;
+    background: var(--bg); color: var(--text);
+    min-height: 100vh; font-size: 14px; line-height: 1.6;
+  }
+
+  /* ── Header ── */
+  header {
+    background: var(--surface); border-bottom: 1px solid var(--border);
+    padding: 0 24px; display: flex; align-items: center;
+    justify-content: space-between; height: 56px;
+    position: sticky; top: 0; z-index: 100;
+  }
+  .logo { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 15px; letter-spacing: -0.3px; }
+  .logo-icon {
+    width: 28px; height: 28px;
+    background: linear-gradient(135deg, var(--accent) 0%, var(--accent2) 100%);
+    border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 14px;
+  }
+  .badge-gov { font-size: 11px; padding: 2px 8px; border-radius: 99px; font-weight: 500; }
+  .badge-central { background: rgba(88,166,255,0.15); color: var(--gov-central); border: 1px solid rgba(88,166,255,0.3); }
+  .badge-local   { background: rgba(63,185,80,0.15);  color: var(--gov-local);   border: 1px solid rgba(63,185,80,0.3); }
+
+  /* ── Layout ── */
+  .layout { display: flex; height: calc(100vh - 56px); }
+
+  /* ── Sidebar ── */
+  aside {
+    width: 300px; min-width: 300px; background: var(--surface);
+    border-right: 1px solid var(--border); overflow-y: auto;
+    padding: 20px 0; display: flex; flex-direction: column;
+  }
+  .sidebar-section {
+    padding: 0 16px 18px; border-bottom: 1px solid var(--border); margin-bottom: 16px;
+  }
+  .sidebar-section:last-child { border-bottom: none; }
+  .sidebar-label {
+    font-size: 11px; font-weight: 700; letter-spacing: 0.8px;
+    text-transform: uppercase; color: var(--muted); margin-bottom: 10px;
+  }
+  select, input[type="password"] {
+    width: 100%; background: var(--surface2); border: 1px solid var(--border);
+    color: var(--text); padding: 8px 10px; border-radius: 6px;
+    font-family: inherit; font-size: 13px; cursor: pointer; margin-bottom: 8px;
+    transition: border-color 0.15s; appearance: none;
+  }
+  select:focus, input:focus { outline: none; border-color: var(--accent2); }
+  input[type="password"] { font-family: 'JetBrains Mono', monospace; letter-spacing: 1px; cursor: text; }
+  .row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  button {
+    width: 100%; padding: 9px 14px; border-radius: 6px; border: none;
+    cursor: pointer; font-family: inherit; font-size: 13px; font-weight: 500; transition: all 0.15s;
+  }
+  .btn-primary { background: var(--accent); color: #0d1117; }
+  .btn-primary:hover { background: #4dca60; }
+  .btn-primary:disabled { background: var(--border); color: var(--muted); cursor: not-allowed; }
+  .btn-secondary { background: var(--surface2); color: var(--text2); border: 1px solid var(--border); margin-top: 6px; }
+  .btn-secondary:hover { border-color: var(--accent2); color: var(--accent2); }
+
+  /* ── Gov toggle ── */
+  .gov-toggle { display: flex; gap: 6px; margin-bottom: 10px; }
+  .gov-btn {
+    flex: 1; padding: 7px; text-align: center; border-radius: 6px; cursor: pointer;
+    border: 1px solid var(--border); background: var(--surface2); color: var(--muted);
+    font-size: 12px; font-weight: 500; transition: all 0.15s; user-select: none;
+  }
+  .gov-btn.active-central { border-color: var(--gov-central); background: rgba(88,166,255,0.12); color: var(--gov-central); }
+  .gov-btn.active-local   { border-color: var(--gov-local);   background: rgba(63,185,80,0.12);  color: var(--gov-local); }
+
+  /* ── 재정 흐름 선택기 ── */
+  .flow-header-row {
+    display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;
+  }
+  .flow-preset-btns { display: flex; gap: 4px; }
+  .flow-preset {
+    font-size: 10px; padding: 2px 7px; border-radius: 4px;
+    background: var(--surface2); border: 1px solid var(--border);
+    color: var(--muted); cursor: pointer; transition: all 0.15s;
+  }
+  .flow-preset:hover { border-color: var(--accent2); color: var(--accent2); }
+
+  /* 흐름 도식 */
+  .flow-diagram {
+    display: flex; align-items: center; gap: 0;
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 7px; margin-bottom: 10px; overflow: hidden;
+  }
+  .flow-diag-step {
+    flex: 1; padding: 6px 4px; text-align: center;
+    font-size: 10px; font-weight: 600; border-right: 1px solid var(--border);
+    transition: all 0.2s; opacity: 0.3; cursor: default;
+    white-space: nowrap; position: relative;
+  }
+  .flow-diag-step:last-child { border-right: none; }
+  .flow-diag-step.active { opacity: 1; }
+  .flow-diag-arrow {
+    font-size: 9px; color: var(--border); padding: 0 1px;
+    display: flex; align-items: center;
+  }
+
+  .flow-selector { display: flex; flex-direction: column; gap: 5px; }
+  .flow-item {
+    display: flex; align-items: center; gap: 9px;
+    padding: 8px 10px; border-radius: 6px; border: 1px solid var(--border);
+    background: var(--surface2); cursor: pointer; transition: all 0.15s; user-select: none;
+  }
+  .flow-item:hover { background: rgba(255,255,255,0.03); }
+  .flow-item.selected { border-color: var(--fi-color, var(--accent2)); background: color-mix(in srgb, var(--fi-color, var(--accent2)) 8%, transparent); }
+  .flow-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+  .flow-label-wrap { flex: 1; }
+  .flow-name { font-size: 12.5px; font-weight: 600; color: var(--text); }
+  .flow-desc { font-size: 10px; color: var(--muted); margin-top: 1px; }
+  .flow-check {
+    width: 16px; height: 16px; border-radius: 4px; border: 1.5px solid var(--border);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px; flex-shrink: 0; background: var(--surface); transition: all 0.15s;
+  }
+  .flow-item.selected .flow-check { background: var(--fi-color, var(--accent2)); border-color: var(--fi-color); color: #fff; }
+
+  /* ── Year grid ── */
+  .year-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; }
+  .year-chip {
+    padding: 5px 4px 4px; text-align: center; border-radius: 5px;
+    border: 1px solid var(--border); background: var(--surface2);
+    cursor: pointer; transition: all 0.15s; user-select: none;
+    display: flex; flex-direction: column; align-items: center; gap: 2px;
+    min-height: 44px; justify-content: center;
+  }
+  .year-chip:hover { border-color: var(--accent2); }
+  .year-chip.selected { border-color: var(--accent); background: rgba(63,185,80,0.12); }
+  .year-chip.selected .year-num { color: var(--accent); font-weight: 700; }
+  .year-chip.year-chip-future { border-style: dashed; opacity: 0.6; }
+  .year-chip.year-chip-none   { opacity: 0.4; }
+  .year-num { font-size: 12px; color: var(--text2); line-height: 1; }
+  .year-badge {
+    font-size: 9px; line-height: 1; color: var(--muted);
+    display: flex; gap: 1px; align-items: center;
+  }
+  .year-badge-checking { animation: pulse 1s infinite; color: var(--accent3); }
+  .year-badge-none     { color: var(--border); }
+
+  /* 연도 탐지 상태 표시 */
+  .year-detect-row {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 8px;
+  }
+  #yearDetectStatus {
+    font-size: 10px; color: var(--muted);
+    transition: color 0.3s;
+  }
+  .detect-btn {
+    font-size: 10px; padding: 3px 8px; border-radius: 4px; width: auto;
+    background: var(--surface2); border: 1px solid var(--border);
+    color: var(--muted); cursor: pointer; transition: all 0.15s;
+  }
+  .detect-btn:hover { border-color: var(--accent2); color: var(--accent2); }
+
+  /* ── Drill path ── */
+  .drill-path { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; }
+  .drill-item {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 6px 10px; background: var(--surface2);
+    border-radius: 5px; border: 1px solid var(--border); font-size: 12px;
+  }
+  .drill-item.active { border-color: var(--accent2); background: rgba(88,166,255,0.08); }
+  .drill-item-label { color: var(--muted); font-size: 10px; margin-bottom: 1px; }
+  .drill-item-value { color: var(--text); font-weight: 500; font-size: 12px; }
+  .drill-reset { background: none; border: none; width: auto; padding: 0; color: var(--muted); cursor: pointer; font-size: 16px; line-height: 1; }
+  .drill-reset:hover { color: var(--danger); }
+
+  /* ── Main ── */
+  main { flex: 1; overflow-y: auto; padding: 24px; }
+
+  /* Status */
+  .status-bar {
+    display: flex; align-items: center; gap: 12px; margin-bottom: 18px;
+    padding: 10px 14px; background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; font-size: 12px; color: var(--muted); flex-wrap: wrap;
+  }
+  .status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); }
+  .status-dot.ok      { background: var(--accent); box-shadow: 0 0 6px var(--accent); }
+  .status-dot.loading { background: var(--accent3); animation: pulse 1s infinite; }
+  .status-dot.error   { background: var(--danger); }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+  /* ── 재정 흐름 요약 카드 ── */
+  .flow-summary {
+    display: flex; align-items: stretch; margin-bottom: 18px;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; overflow: hidden;
+  }
+  .flow-card {
+    flex: 1; padding: 14px 14px 12px; border-right: 1px solid var(--border);
+    transition: background 0.15s; min-width: 0;
+  }
+  .flow-card:last-child { border-right: none; }
+  .flow-card.inactive { opacity: 0.3; }
+  .flow-card-top { display: flex; align-items: center; gap: 6px; margin-bottom: 5px; }
+  .flow-card-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+  .flow-card-label { font-size: 10.5px; color: var(--muted); font-weight: 500; white-space: nowrap; }
+  .flow-card-value { font-family: 'JetBrains Mono', monospace; font-size: 15px; font-weight: 700; letter-spacing: -0.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .flow-card-unit { font-size: 10px; color: var(--muted); font-weight: 400; font-family: inherit; margin-left: 2px; }
+  .flow-card-sub  { font-size: 10px; color: var(--muted); margin-top: 3px; white-space: nowrap; }
+  .exec-bar-bg { height: 3px; background: var(--border); border-radius: 2px; margin-top: 5px; }
+  .exec-bar-fill { height: 100%; border-radius: 2px; transition: width 0.5s ease; }
+
+  /* ── 탭 ── */
+  .tabs { display: flex; border-bottom: 1px solid var(--border); margin-bottom: 18px; }
+  .tab { padding: 9px 16px; font-size: 13px; font-weight: 500; cursor: pointer; color: var(--muted); border-bottom: 2px solid transparent; transition: all 0.15s; user-select: none; }
+  .tab.active { color: var(--text); border-bottom-color: var(--accent2); }
+  .tab:hover:not(.active) { color: var(--text2); }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  /* ── Table ── */
+  .table-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; margin-bottom: 18px; overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; min-width: 680px; }
+  thead { background: var(--surface2); position: sticky; top: 0; z-index: 2; }
+  th {
+    padding: 9px 11px; text-align: right; font-weight: 600; color: var(--muted);
+    border-bottom: 2px solid var(--border); white-space: nowrap; font-size: 10.5px; letter-spacing: 0.2px;
+  }
+  th:first-child, th:nth-child(2) { text-align: left; }
+  th.th-org    { color: var(--c-org);    border-bottom-color: var(--c-org); }
+  th.th-supple { color: var(--c-supple); border-bottom-color: var(--c-supple); }
+  th.th-curr   { color: var(--c-curr);   border-bottom-color: var(--c-curr); }
+  th.th-exec   { color: var(--c-exec);   border-bottom-color: var(--c-exec); }
+  th.th-settle { color: var(--c-settle); border-bottom-color: var(--c-settle); }
+  td {
+    padding: 8px 11px; border-bottom: 1px solid rgba(48,54,61,0.5);
+    text-align: right; color: var(--text2);
+    font-family: 'JetBrains Mono', monospace; font-size: 11.5px;
+  }
+  td:first-child { font-family: 'Noto Sans KR', sans-serif; text-align: left; font-weight: 500; color: var(--text); min-width: 42px; }
+  td:nth-child(2) { font-family: 'Noto Sans KR', sans-serif; text-align: left; color: var(--text); }
+  tr:hover td { background: rgba(255,255,255,0.02); }
+  tr:last-child td { border-bottom: none; }
+  .td-pos { color: var(--accent) !important; }
+  .td-neg { color: var(--danger) !important; }
+  .td-warn{ color: var(--warning) !important; }
+  .drill-link { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; transition: color 0.1s; }
+  .drill-link:hover { color: var(--accent2); }
+  .drill-link::after { content: '▸'; font-size: 9px; color: var(--muted); }
+
+  /* 집행률 셀 */
+  .rate-cell { display: flex; align-items: center; gap: 5px; justify-content: flex-end; }
+  .rate-mini-bar { width: 36px; height: 4px; background: var(--border); border-radius: 2px; flex-shrink: 0; }
+  .rate-mini-fill { height: 100%; border-radius: 2px; }
+
+  /* ── Chart ── */
+  .chart-container { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 20px; margin-bottom: 18px; min-height: 260px; overflow-x: auto; }
+  .chart-title { font-size: 13px; font-weight: 600; color: var(--text2); margin-bottom: 14px; }
+
+  /* ── Tooltip ── */
+  .chart-tooltip {
+    position: fixed; background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 6px; padding: 8px 12px; font-size: 12px;
+    pointer-events: none; z-index: 999; display: none; max-width: 240px; line-height: 1.8;
+  }
+  .chart-tooltip.visible { display: block; }
+
+  /* ── Empty ── */
+  .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 56px 20px; color: var(--muted); gap: 12px; text-align: center; }
+  .empty-icon  { font-size: 38px; opacity: 0.4; }
+  .empty-title { font-size: 15px; font-weight: 500; color: var(--text2); }
+  .empty-sub   { font-size: 12px; max-width: 320px; line-height: 1.9; }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  .key-hint { font-size: 11px; color: var(--muted); margin-top: -4px; margin-bottom: 8px; }
+  .key-hint a { color: var(--accent2); text-decoration: none; }
+
+  /* ── API 키 섹션 상태 ── */
+  .key-section-saved {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 9px 11px; border-radius: 6px;
+    border: 1px solid rgba(63,185,80,0.35);
+    background: rgba(63,185,80,0.07); margin-bottom: 8px;
+  }
+  .key-saved-left  { display: flex; align-items: center; gap: 8px; }
+  .key-saved-icon  { font-size: 14px; }
+  .key-saved-text  { font-size: 12px; color: var(--accent); font-weight: 500; }
+  .key-saved-sub   { font-size: 10px; color: var(--muted); margin-top: 1px; }
+  .key-clear-btn   {
+    font-size: 10px; padding: 3px 8px; border-radius: 4px; width: auto;
+    background: transparent; border: 1px solid rgba(248,81,73,0.3);
+    color: var(--muted); cursor: pointer; transition: all 0.15s;
+  }
+  .key-clear-btn:hover { border-color: var(--danger); color: var(--danger); }
+  .key-input-row { position: relative; margin-bottom: 4px; }
+  .key-input-row input { margin-bottom: 0; padding-right: 36px; }
+  .key-save-indicator {
+    position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+    font-size: 12px; pointer-events: none; transition: opacity 0.3s;
+  }
+
+  @media (max-width: 900px) {
+    .layout { flex-direction: column; height: auto; }
+    aside { width: 100%; min-width: unset; height: auto; border-right: none; border-bottom: 1px solid var(--border); }
+    .flow-summary { flex-wrap: wrap; }
+    .flow-card { min-width: 45%; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">📊</div>
+    재정예결산 분석 대시보드
+  </div>
+  <div style="display:flex;gap:6px;align-items:center">
+    <span class="badge-gov badge-central">중앙정부</span>
+    <span class="badge-gov badge-local">지방정부</span>
+    <span style="font-size:11px;color:var(--muted);margin-left:4px">열린재정 Open API</span>
+  </div>
+</header>
+
+<div class="layout">
+<!-- ════════════════════════════════════ SIDEBAR ════════════════════════════════════ -->
+<aside>
+
+  <!-- API Key -->
+  <div class="sidebar-section" id="keySectionWrap">
+    <div class="sidebar-label">🔑 API 인증키</div>
+
+    <!-- 저장된 키 표시 (저장 후 노출) -->
+    <div class="key-section-saved" id="keySavedView" style="display:none">
+      <div class="key-saved-left">
+        <div class="key-saved-icon">✅</div>
+        <div>
+          <div class="key-saved-text">인증키 저장됨</div>
+          <div class="key-saved-sub" id="keySavedMask">——</div>
+        </div>
+      </div>
+      <button class="key-clear-btn" onclick="clearSavedKey()">변경</button>
+    </div>
+
+    <!-- 입력 폼 (미저장 상태) -->
+    <div id="keyInputView">
+      <div class="key-input-row">
+        <input type="password" id="apiKey" placeholder="인증키를 입력하면 자동 저장됩니다" autocomplete="off">
+        <span class="key-save-indicator" id="keySaveIndicator" style="opacity:0"></span>
+      </div>
+      <div class="key-hint">
+        브라우저에만 저장 — 코드·GitHub에 기록되지 않습니다<br>
+        <a href="https://www.openfiscaldata.go.kr/op/ko/ds/UOPKODSA06" target="_blank">열린재정 Open API</a>에서 발급
+      </div>
+    </div>
+  </div>
+
+  <!-- 정부 구분 -->
+  <div class="sidebar-section">
+    <div class="sidebar-label">🏛 정부 구분</div>
+    <div class="gov-toggle">
+      <div class="gov-btn active-central" id="govCentral" onclick="setGov('central')">중앙정부</div>
+      <div class="gov-btn" id="govLocal" onclick="setGov('local')">지방정부</div>
+    </div>
+    <div id="localOptions" style="display:none">
+      <select id="localType">
+        <option value="">광역/기초 선택</option>
+        <option value="metro">광역시도</option>
+        <option value="basic">기초시군구</option>
+      </select>
+      <select id="localRegion">
+        <option value="">지역 선택 (전체)</option>
+        <option value="11">서울특별시</option>
+        <option value="26">부산광역시</option>
+        <option value="27">대구광역시</option>
+        <option value="28">인천광역시</option>
+        <option value="29">광주광역시</option>
+        <option value="30">대전광역시</option>
+        <option value="31">울산광역시</option>
+        <option value="36">세종특별자치시</option>
+        <option value="41">경기도</option>
+        <option value="42">강원특별자치도</option>
+        <option value="43">충청북도</option>
+        <option value="44">충청남도</option>
+        <option value="45">전북특별자치도</option>
+        <option value="46">전라남도</option>
+        <option value="47">경상북도</option>
+        <option value="48">경상남도</option>
+        <option value="50">제주특별자치도</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- ★ 재정 구분 -->
+  <div class="sidebar-section">
+    <div class="flow-header-row">
+      <div class="sidebar-label" style="margin-bottom:0">💰 재정 구분</div>
+      <div class="flow-preset-btns">
+        <div class="flow-preset" onclick="setPreset('all')">전체</div>
+        <div class="flow-preset" onclick="setPreset('budget')">예산만</div>
+        <div class="flow-preset" onclick="setPreset('exec')">집행+결산</div>
+      </div>
+    </div>
+
+    <!-- 흐름 도식 -->
+    <div class="flow-diagram" id="flowDiagram">
+      <div class="flow-diag-step" id="fd-org"    style="color:var(--c-org)">본예산</div>
+      <div class="flow-diag-arrow">▶</div>
+      <div class="flow-diag-step" id="fd-supple" style="color:var(--c-supple)">추경</div>
+      <div class="flow-diag-arrow">▶</div>
+      <div class="flow-diag-step" id="fd-curr"   style="color:var(--c-curr)">현액</div>
+      <div class="flow-diag-arrow">▶</div>
+      <div class="flow-diag-step" id="fd-exec"   style="color:var(--c-exec)">집행</div>
+      <div class="flow-diag-arrow">▶</div>
+      <div class="flow-diag-step" id="fd-settle" style="color:var(--c-settle)">결산</div>
+    </div>
+
+    <div class="flow-selector" id="flowSelector"></div>
+  </div>
+
+  <!-- 연도 선택 -->
+  <div class="sidebar-section">
+    <div class="year-detect-row">
+      <div class="sidebar-label" style="margin-bottom:0">📅 분석 연도</div>
+      <button class="detect-btn" onclick="detectAvailableYears()" title="API에서 제공 연도 자동 확인">🔍 연도 탐지</button>
+    </div>
+    <div id="yearDetectStatus" style="font-size:10px;color:var(--muted);margin-bottom:8px;min-height:14px">
+      인증키 입력 후 탐지 버튼을 누르면 제공 연도를 자동 확인합니다
+    </div>
+    <div class="year-grid" id="yearGrid"></div>
+    <div style="display:flex;gap:6px;margin-top:8px">
+      <button class="btn-secondary" onclick="selectAllYears()" style="font-size:11px;padding:5px">전체</button>
+      <button class="btn-secondary" onclick="clearYears()"     style="font-size:11px;padding:5px">현재연도</button>
+      <button class="btn-secondary" onclick="selectRecentYears(3)" style="font-size:11px;padding:5px">최근3년</button>
+    </div>
+  </div>
+
+  <!-- 드릴다운 경로 -->
+  <div class="sidebar-section">
+    <div class="sidebar-label">🔍 드릴다운 경로</div>
+    <div class="drill-path" id="drillPath">
+      <div class="drill-item" style="justify-content:center;color:var(--muted);font-size:12px">
+        항목 클릭 시 하위 단계로 이동
+      </div>
+    </div>
+    <button class="btn-secondary" onclick="resetDrill()" id="btnReset" style="display:none">
+      ↩ 최상위로 돌아가기
+    </button>
+  </div>
+
+  <!-- 조회 버튼 -->
+  <div style="padding:0 16px;margin-top:auto">
+    <button class="btn-primary" id="btnFetch" onclick="fetchData()">📡 데이터 조회</button>
+    <button class="btn-secondary" onclick="exportCSV()">⬇ CSV 내보내기</button>
+  </div>
+
+</aside>
+
+<!-- ════════════════════════════════════ MAIN ════════════════════════════════════ -->
+<main>
+
+  <!-- Status -->
+  <div class="status-bar">
+    <div class="status-dot" id="statusDot"></div>
+    <span id="statusText">API 인증키 입력 → 재정 구분 선택 → 연도 선택 → 조회</span>
+  </div>
+
+  <!-- ★ 재정 흐름 요약 카드 (5단계) -->
+  <div class="flow-summary" id="flowSummary" style="display:none">
+    <div class="flow-card" id="fc-org">
+      <div class="flow-card-top"><div class="flow-card-dot" style="background:var(--c-org)"></div><div class="flow-card-label">① 본예산</div></div>
+      <div class="flow-card-value" id="fv-org">—<span class="flow-card-unit">억원</span></div>
+      <div class="flow-card-sub"  id="fs-org">국회 확정 당초예산</div>
+    </div>
+    <div class="flow-card" id="fc-supple">
+      <div class="flow-card-top"><div class="flow-card-dot" style="background:var(--c-supple)"></div><div class="flow-card-label">② 추경증감</div></div>
+      <div class="flow-card-value" id="fv-supple">—<span class="flow-card-unit">억원</span></div>
+      <div class="flow-card-sub"  id="fs-supple">본예산 대비 ±—%</div>
+    </div>
+    <div class="flow-card" id="fc-curr">
+      <div class="flow-card-top"><div class="flow-card-dot" style="background:var(--c-curr)"></div><div class="flow-card-label">③ 현액 (최종예산)</div></div>
+      <div class="flow-card-value" id="fv-curr">—<span class="flow-card-unit">억원</span></div>
+      <div class="flow-card-sub"  id="fs-curr">본예산 대비 ±—%</div>
+    </div>
+    <div class="flow-card" id="fc-exec">
+      <div class="flow-card-top"><div class="flow-card-dot" style="background:var(--c-exec)"></div><div class="flow-card-label">④ 집행액</div></div>
+      <div class="flow-card-value" id="fv-exec">—<span class="flow-card-unit">억원</span></div>
+      <div class="flow-card-sub"  id="fs-exec">집행률 —%</div>
+      <div class="exec-bar-bg"><div class="exec-bar-fill" id="exec-bar" style="width:0%;background:var(--c-exec)"></div></div>
+    </div>
+    <div class="flow-card" id="fc-settle">
+      <div class="flow-card-top"><div class="flow-card-dot" style="background:var(--c-settle)"></div><div class="flow-card-label">⑤ 결산</div></div>
+      <div class="flow-card-value" id="fv-settle">—<span class="flow-card-unit">억원</span></div>
+      <div class="flow-card-sub"  id="fs-settle">현액 대비 —%</div>
+    </div>
+  </div>
+
+  <!-- 탭 -->
+  <div class="tabs" id="mainTabs" style="display:none">
+    <div class="tab active" onclick="switchTab('table')">📋 재정 현황표</div>
+    <div class="tab" onclick="switchTab('flow')">🔄 흐름 분석</div>
+    <div class="tab" onclick="switchTab('trend')">📈 연도별 추이</div>
+    <div class="tab" onclick="switchTab('share')">🍩 구성비</div>
+  </div>
+
+  <!-- 패널: 재정 현황표 -->
+  <div id="panelTable" class="tab-panel active">
+    <div id="mainContent">
+      <div class="empty-state">
+        <div class="empty-icon">🏛</div>
+        <div class="empty-title">재정 데이터를 조회하세요</div>
+        <div class="empty-sub">
+          <strong>① API 인증키</strong> 입력<br>
+          <strong>② 재정 구분</strong> 선택 (본예산 → 추경 → 현액 → 집행 → 결산)<br>
+          <strong>③ 분석 연도</strong> 선택 후 <strong>데이터 조회</strong> 클릭<br><br>
+          분야 항목을 클릭하면 <strong>5단계 드릴다운</strong> 가능합니다
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 패널: 흐름 분석 -->
+  <div id="panelFlow" class="tab-panel">
+    <div class="chart-container" id="flowChart">
+      <div class="empty-state"><div class="empty-icon">🔄</div><div class="empty-sub">데이터 조회 후 표시됩니다</div></div>
+    </div>
+  </div>
+
+  <!-- 패널: 연도별 추이 -->
+  <div id="panelTrend" class="tab-panel">
+    <div class="chart-container" id="trendChart">
+      <div class="empty-state"><div class="empty-icon">📈</div><div class="empty-sub">데이터 조회 후 표시됩니다</div></div>
+    </div>
+  </div>
+
+  <!-- 패널: 구성비 -->
+  <div id="panelShare" class="tab-panel">
+    <div class="chart-container" id="shareChart">
+      <div class="empty-state"><div class="empty-icon">🍩</div><div class="empty-sub">데이터 조회 후 표시됩니다</div></div>
+    </div>
+  </div>
+
+</main>
+</div>
+
+<div class="chart-tooltip" id="tooltip"></div>
+
+<script>
+// ═══════════════════════════════════════════════════
+//  상수
+// ═══════════════════════════════════════════════════
+// 연도는 하드코딩하지 않고 현재연도 기준으로 동적 생성 + API 탐지로 갱신
+const FISCAL_START = 2015; // 열린재정 데이터 시작연도
+const THIS_YEAR    = new Date().getFullYear();
+// 현재연도+1까지 후보 생성 (내년 본예산은 당해연도 말에 공개되므로 여유 확보)
+function buildCandidateYears() {
+  const years = [];
+  for (let y = FISCAL_START; y <= THIS_YEAR + 1; y++) years.push(y);
+  return years;
+}
+const LEVEL_NAMES  = ['분야','부문','프로그램','단위사업','세부사업'];
+const API_BASE     = 'https://openapi.openfiscaldata.go.kr/';
+const PROXY        = 'https://api.allorigins.win/raw?url=';
+const PALETTE      = ['#58a6ff','#3fb950','#f0883e','#d2a8ff','#ffa657','#79c0ff','#56d364','#ff7b72','#e3b341','#bc8cff'];
+
+// 16개 기능 분야
+const FILD_CODES = [
+  {code:'010',name:'일반·지방행정'},{code:'020',name:'공공질서 및 안전'},
+  {code:'030',name:'통일·외교'},{code:'040',name:'국방'},
+  {code:'050',name:'교육'},{code:'060',name:'문화 및 관광'},
+  {code:'070',name:'환경'},{code:'080',name:'사회복지'},
+  {code:'090',name:'보건'},{code:'100',name:'농림수산'},
+  {code:'110',name:'산업·중소기업 및 에너지'},{code:'120',name:'교통 및 물류'},
+  {code:'130',name:'통신'},{code:'140',name:'국토 및 지역개발'},
+  {code:'150',name:'과학기술'},{code:'160',name:'예비비'},
+];
+
+// ── 재정 흐름 5단계 정의 ──────────────────────────────
+// 열린재정 API는 예산 엔드포인트(dFUncBudgetInfo) 응답 하나에
+// 본예산·현액·집행액을 모두 포함하고,
+// 결산 엔드포인트(dFUncSettleInfo)에서 결산액을 제공합니다.
+// 추경증감은 현액 - 본예산으로 계산(derived)합니다.
+const FLOW_STAGES = [
+  {
+    id:'org', name:'본예산', desc:'국회 확정 당초예산',
+    cssColor:'#58a6ff', cssVar:'var(--c-org)',
+    // 열린재정 API 응답 가능 필드명 (우선순위 순)
+    fields:['OFCL_BUDGET_AMT','ORG_BUDGET_AMT','BF_BUDGET_AMT','INIT_BUDGET_AMT'],
+    dataType:'budget',
+  },
+  {
+    id:'supple', name:'추경증감', desc:'본예산 대비 추경 증감액 (현액-본예산)',
+    cssColor:'#f0883e', cssVar:'var(--c-supple)',
+    fields:['SUPPLE_BUDGET_AMT','AMNDT_BUDGET_AMT'],  // 없으면 현액-본예산으로 계산
+    derived:true,   // 현액 - 본예산
+    dataType:'budget',
+  },
+  {
+    id:'curr', name:'현액', desc:'최종확정 예산 (본예산+추경)',
+    cssColor:'#d2a8ff', cssVar:'var(--c-curr)',
+    fields:['CRNT_BUDGET_AMT','CURR_BUDGET_AMT','YY_BUDGET_AMT','BUDGET_AMT','BD_AMT','EXPNS_BUDGET_AMT'],
+    dataType:'budget',
+  },
+  {
+    id:'exec', name:'집행액', desc:'당해연도 실집행(지출) 금액',
+    cssColor:'#3fb950', cssVar:'var(--c-exec)',
+    fields:['EXCUT_AMT','EXEC_AMT','EXPD_AMT','EXUT_AMT','EXPEND_AMT','EXCUT_BUDGET_AMT'],
+    dataType:'budget',
+  },
+  {
+    id:'settle', name:'결산', desc:'국회 승인 최종 결산액',
+    cssColor:'#e3b341', cssVar:'var(--c-settle)',
+    fields:['SETL_AMT','SETTLE_AMT','RSLT_AMT','ACCT_AMT','EXCUT_AMT'],
+    dataType:'settlement',
+  },
+];
+
+// API 엔드포인트
+const ENDPOINTS = {
+  central_budget:     'dFUncBudgetInfo',
+  central_settlement: 'dFUncSettleInfo',
+  local_budget:       'dLFUncBudgetInfo',
+  local_settlement:   'dLFUncSettleInfo',
+};
+
+// 프리셋
+const PRESETS = {
+  all:    ['org','supple','curr','exec','settle'],
+  budget: ['org','supple','curr'],
+  exec:   ['curr','exec','settle'],
+};
+
+// ═══════════════════════════════════════════════════
+//  상태
+// ═══════════════════════════════════════════════════
+let state = {
+  govType:       'central',
+  selectedYears: [THIS_YEAR - 2, THIS_YEAR - 1, THIS_YEAR],
+  selectedFlows: ['org','supple','curr','exec','settle'],
+  drillStack:    [],
+  allData:       {},
+  // yearMeta: { year → { budget:'ok'|'none'|'checking', settlement:'ok'|'none'|'checking' } }
+  yearMeta:      {},
+  yearDetecting: false,
+};
+
+// ═══════════════════════════════════════════════════
+//  초기화
+// ═══════════════════════════════════════════════════
+function init() {
+  renderFlowSelector();
+  renderYearGrid();        // 후보 연도 먼저 표시
+  updateDrillUI();
+  syncFlowDiagram();
+}
+
+// ─────────────────────────────────────────────
+// 재정 구분 선택기
+// ─────────────────────────────────────────────
+function renderFlowSelector() {
+  const el = document.getElementById('flowSelector');
+  el.innerHTML = FLOW_STAGES.map(s => `
+    <div class="flow-item ${state.selectedFlows.includes(s.id) ? 'selected' : ''}"
+         style="--fi-color:${s.cssColor}"
+         onclick="toggleFlow('${s.id}')">
+      <div class="flow-dot" style="background:${s.cssColor}"></div>
+      <div class="flow-label-wrap">
+        <div class="flow-name">${s.name}</div>
+        <div class="flow-desc">${s.desc}</div>
+      </div>
+      <div class="flow-check">${state.selectedFlows.includes(s.id) ? '✓' : ''}</div>
+    </div>
+  `).join('');
+}
+
+function toggleFlow(id) {
+  if (state.selectedFlows.includes(id)) {
+    if (state.selectedFlows.length === 1) return; // 최소 1개
+    state.selectedFlows = state.selectedFlows.filter(x => x !== id);
+  } else {
+    const order = FLOW_STAGES.map(s => s.id);
+    state.selectedFlows = order.filter(x => state.selectedFlows.includes(x) || x === id);
+  }
+  renderFlowSelector();
+  syncFlowDiagram();
+}
+
+function setPreset(key) {
+  state.selectedFlows = [...PRESETS[key]];
+  renderFlowSelector();
+  syncFlowDiagram();
+}
+
+function syncFlowDiagram() {
+  FLOW_STAGES.forEach(s => {
+    const el = document.getElementById(`fd-${s.id}`);
+    if (el) el.classList.toggle('active', state.selectedFlows.includes(s.id));
+  });
+}
+
+// ─────────────────────────────────────────────
+// 연도 선택 — 동적 탐지 시스템
+// ─────────────────────────────────────────────
+
+// 후보 연도 목록 (항상 현재연도+1까지 포함)
+function getCandidateYears() { return buildCandidateYears(); }
+
+// 연도 칩 렌더: yearMeta 상태에 따라 뱃지 표시
+function renderYearGrid() {
+  const candidates = getCandidateYears();
+  const grid = document.getElementById('yearGrid');
+  grid.innerHTML = candidates.map(y => {
+    const meta    = state.yearMeta[y] || {};
+    const hasBudg = meta.budget     === 'ok';
+    const hasSetl = meta.settlement === 'ok';
+    const checking= meta.budget     === 'checking' || meta.settlement === 'checking';
+    const isFuture= y > THIS_YEAR;
+    const isSelected = state.selectedYears.includes(y);
+
+    // 배지: 데이터 존재 여부 표시
+    let badge = '';
+    if (checking) {
+      badge = `<span class="year-badge year-badge-checking" title="확인중">···</span>`;
+    } else if (hasBudg || hasSetl) {
+      const parts = [];
+      if (hasBudg) parts.push('<span style="color:var(--c-org)" title="예산">예</span>');
+      if (hasSetl) parts.push('<span style="color:var(--c-settle)" title="결산">결</span>');
+      badge = `<span class="year-badge">${parts.join('·')}</span>`;
+    } else if (Object.keys(meta).length > 0) {
+      badge = `<span class="year-badge year-badge-none" title="데이터 없음">—</span>`;
+    }
+
+    // 미래연도는 점선 스타일
+    const futureStyle = isFuture ? 'year-chip-future' : '';
+    const noneStyle   = Object.keys(meta).length > 0 && !hasBudg && !hasSetl && !checking ? 'year-chip-none' : '';
+
+    return `<div class="year-chip ${isSelected ? 'selected' : ''} ${futureStyle} ${noneStyle}"
+         onclick="toggleYear(${y})" title="${y}년${isFuture?' (미래연도)':''}">
+      <div class="year-num">${y}</div>
+      ${badge}
+    </div>`;
+  }).join('');
+}
+
+function toggleYear(y) {
+  if (state.selectedYears.includes(y)) {
+    if (state.selectedYears.length === 1) return;
+    state.selectedYears = state.selectedYears.filter(x => x !== y);
+  } else {
+    state.selectedYears = [...state.selectedYears, y].sort();
+  }
+  renderYearGrid();
+}
+
+function selectAllYears() {
+  // 데이터 확인된 연도만 전체 선택
+  const hasData = getCandidateYears().filter(y => {
+    const m = state.yearMeta[y] || {};
+    return m.budget === 'ok' || m.settlement === 'ok';
+  });
+  state.selectedYears = hasData.length > 0 ? hasData : getCandidateYears().filter(y => y <= THIS_YEAR);
+  renderYearGrid();
+}
+
+function clearYears() {
+  state.selectedYears = [THIS_YEAR];
+  renderYearGrid();
+}
+
+function selectRecentYears(n) {
+  // 데이터 확인된 최근 N년, 없으면 후보 최근 N년
+  const withData = getCandidateYears().filter(y => {
+    const m = state.yearMeta[y] || {};
+    return m.budget === 'ok' || m.settlement === 'ok';
+  });
+  const pool = withData.length > 0 ? withData : getCandidateYears().filter(y => y <= THIS_YEAR);
+  state.selectedYears = pool.slice(-n);
+  renderYearGrid();
+}
+
+// ─────────────────────────────────────────────
+// 연도 자동 탐지 (API 키 입력 후 백그라운드 실행)
+// ─────────────────────────────────────────────
+async function detectAvailableYears() {
+  const apiKey = getApiKey();
+  if (!apiKey || state.yearDetecting) return;
+  state.yearDetecting = true;
+
+  const candidates = getCandidateYears();
+  const govType    = state.govType;
+
+  // 탐지 전 상태: 후보 연도 모두 'checking'
+  candidates.forEach(y => {
+    if (!state.yearMeta[y]) state.yearMeta[y] = {};
+    state.yearMeta[y].budget     = 'checking';
+    state.yearMeta[y].settlement = 'checking';
+  });
+  renderYearGrid();
+  setYearDetectStatus('detecting', `${candidates.length}개 연도 데이터 확인 중...`);
+
+  // 연도별 probe: pSize=1로 최소 호출 (빠른 확인)
+  const epBudget = ENDPOINTS[`${govType}_budget`];
+  const epSettle = ENDPOINTS[`${govType}_settlement`];
+
+  // 연도를 4개씩 묶어서 병렬 처리 (API 과부하 방지)
+  const CHUNK = 4;
+  for (let i = 0; i < candidates.length; i += CHUNK) {
+    const chunk = candidates.slice(i, i + CHUNK);
+    await Promise.all(chunk.map(async (year) => {
+      const [budgetOk, settleOk] = await Promise.all([
+        probeYear(apiKey, epBudget, year),
+        probeYear(apiKey, epSettle, year),
+      ]);
+      if (!state.yearMeta[year]) state.yearMeta[year] = {};
+      state.yearMeta[year].budget     = budgetOk ? 'ok' : 'none';
+      state.yearMeta[year].settlement = settleOk ? 'ok' : 'none';
+    }));
+    renderYearGrid(); // 청크마다 UI 업데이트 (점진적 표시)
+  }
+
+  // 탐지 결과 요약
+  const available = candidates.filter(y => state.yearMeta[y]?.budget === 'ok' || state.yearMeta[y]?.settlement === 'ok');
+  const maxAvail  = available.length ? Math.max(...available) : THIS_YEAR;
+
+  // 기본 선택: 탐지된 최근 3개년
+  const recent3 = available.slice(-3);
+  if (recent3.length > 0) {
+    state.selectedYears = recent3;
+  }
+
+  renderYearGrid();
+  setYearDetectStatus('done', `${available.length}개 연도 데이터 확인 완료 (최신: ${maxAvail}년)`);
+  state.yearDetecting = false;
+}
+
+async function probeYear(apiKey, ep, year) {
+  try {
+    const params = new URLSearchParams({ key: apiKey, Type:'json', pIndex:'1', pSize:'1', FSCL_YR: String(year) });
+    const url    = `${API_BASE}${ep}?${params}`;
+    const res    = await fetch(PROXY + encodeURIComponent(url));
+    const text   = await res.text();
+    const data   = JSON.parse(text);
+    const rows   = extractRows(data, ep);
+    return rows.length > 0;
+  } catch { return false; }
+}
+
+function setYearDetectStatus(type, msg) {
+  const el = document.getElementById('yearDetectStatus');
+  if (!el) return;
+  const icons = { detecting:'⟳', done:'✓', error:'✕' };
+  const colors= { detecting:'var(--muted)', done:'var(--accent)', error:'var(--danger)' };
+  el.textContent = `${icons[type]} ${msg}`;
+  el.style.color = colors[type];
+  if (type === 'detecting') el.style.animation = 'pulse 1.2s infinite';
+  else el.style.animation = 'none';
+}
+
+// ─────────────────────────────────────────────
+// 정부 구분
+// ─────────────────────────────────────────────
+function setGov(type) {
+  state.govType = type;
+  state.drillStack = [];
+  // 정부 구분 바뀌면 yearMeta 초기화 (각 정부별 제공 연도가 다를 수 있음)
+  state.yearMeta = {};
+  state.yearDetecting = false;
+  document.getElementById('govCentral').className = 'gov-btn' + (type === 'central' ? ' active-central' : '');
+  document.getElementById('govLocal').className   = 'gov-btn' + (type === 'local'   ? ' active-local'   : '');
+  document.getElementById('localOptions').style.display = type === 'local' ? 'block' : 'none';
+  setYearDetectStatus('detecting', '정부 구분 변경 — 연도 탐지를 다시 실행하세요');
+  document.getElementById('yearDetectStatus').style.animation = 'none';
+  document.getElementById('yearDetectStatus').style.color = 'var(--muted)';
+  renderYearGrid();
+  updateDrillUI();
+  // API 키가 있으면 자동 재탐지
+  if (document.getElementById('apiKey').value.trim().length > 10) {
+    setTimeout(detectAvailableYears, 300);
+  }
+}
+
+// ─────────────────────────────────────────────
+// 드릴다운
+// ─────────────────────────────────────────────
+function updateDrillUI() {
+  const path = document.getElementById('drillPath');
+  const btnReset = document.getElementById('btnReset');
+  if (!state.drillStack.length) {
+    path.innerHTML = `<div class="drill-item" style="justify-content:center;color:var(--muted);font-size:12px">항목 클릭 시 하위 단계로 이동</div>`;
+    btnReset.style.display = 'none'; return;
+  }
+  btnReset.style.display = 'block';
+  path.innerHTML = state.drillStack.map((d, i) => `
+    <div class="drill-item ${i === state.drillStack.length - 1 ? 'active' : ''}">
+      <div>
+        <div class="drill-item-label">${LEVEL_NAMES[d.level]}</div>
+        <div class="drill-item-value">${d.name}</div>
+      </div>
+      <button class="drill-reset" onclick="drillTo(${i - 1})">✕</button>
+    </div>
+  `).join('');
+}
+
+function drillTo(idx) {
+  if (idx < 0) resetDrill();
+  else { state.drillStack = state.drillStack.slice(0, idx + 1); updateDrillUI(); fetchData(); }
+}
+function resetDrill() { state.drillStack = []; updateDrillUI(); fetchData(); }
+function drillDown(code, name) {
+  const level = state.drillStack.length;
+  if (level >= 4) { alert('세부사업이 최하위 단계입니다.'); return; }
+  state.drillStack.push({ level, code, name });
+  updateDrillUI();
+  fetchData();
+}
+
+// ═══════════════════════════════════════════════════
+//  API 호출
+// ═══════════════════════════════════════════════════
+async function fetchData() {
+  const apiKey = getApiKey();
+  if (!apiKey)                      { setStatus('error','API 인증키를 입력하거나 저장해주세요.'); return; }
+  if (!state.selectedFlows.length)  { setStatus('error','재정 구분을 선택해주세요.'); return; }
+  if (!state.selectedYears.length)  { setStatus('error','연도를 선택해주세요.'); return; }
+
+  const flowNames = state.selectedFlows.map(id => FLOW_STAGES.find(s => s.id === id).name).join(' + ');
+  setStatus('loading', `${state.selectedYears.join(', ')}년 · ${flowNames} 조회 중...`);
+  document.getElementById('btnFetch').disabled = true;
+  state.allData = {};
+
+  try {
+    // 필요한 엔드포인트 결정
+    // 본예산·추경·현액·집행 → budget 엔드포인트 1회로 해결
+    // 결산 → settlement 엔드포인트
+    const needBudget     = state.selectedFlows.some(id => ['org','supple','curr','exec'].includes(id));
+    const needSettlement = state.selectedFlows.includes('settle');
+
+    const combos = [];
+    for (const year of state.selectedYears) {
+      if (needBudget)     combos.push({ year, dataType:'budget',     epKey:`${state.govType}_budget` });
+      if (needSettlement) combos.push({ year, dataType:'settlement', epKey:`${state.govType}_settlement` });
+    }
+
+    const results = await Promise.all(combos.map(c => fetchOne(apiKey, c.epKey, c.year)));
+
+    combos.forEach(({ year, dataType }, i) => {
+      if (!state.allData[year]) state.allData[year] = {};
+      state.allData[year][dataType] = results[i] || [];
+    });
+
+    renderAll();
+    const latestYear = Math.max(...state.selectedYears);
+    const rowCount = (state.allData[latestYear]?.budget || state.allData[latestYear]?.settlement || []).length;
+    setStatus('ok', `${state.selectedYears.join(', ')}년 · ${LEVEL_NAMES[state.drillStack.length]} 수준 · ${rowCount}건 조회 완료`);
+  } catch(e) {
+    setStatus('error', `조회 실패: ${e.message}`);
+    console.error(e);
+  } finally {
+    document.getElementById('btnFetch').disabled = false;
+  }
+}
+
+async function fetchOne(apiKey, epKey, year) {
+  const ep = ENDPOINTS[epKey];
+  const params = new URLSearchParams({
+    key: apiKey, Type:'json', pIndex:'1', pSize:'300', FSCL_YR: String(year),
+  });
+  const DRILL_PARAMS = ['FILD_CD','SECT_CD','PGM_CD','UNIT_ERND_BUSN_CD'];
+  state.drillStack.forEach((d, i) => params.set(DRILL_PARAMS[i], d.code));
+  if (state.govType === 'local') {
+    const region = document.getElementById('localRegion').value;
+    if (region) params.set('CTG_CD', region);
+  }
+  const url     = `${API_BASE}${ep}?${params}`;
+  const proxied = PROXY + encodeURIComponent(url);
+  const res     = await fetch(proxied);
+  const text    = await res.text();
+  let data;
+  try { data = JSON.parse(text); } catch(e) { throw new Error(`응답 파싱 실패 — API 키·엔드포인트 확인 필요 (${text.slice(0,60)})`); }
+  return extractRows(data, ep);
+}
+
+function extractRows(data, ep) {
+  const root = data[ep] || data;
+  if (root?.list) return root.list;
+  if (Array.isArray(root)) return root;
+  if (data.response?.body?.items?.item) {
+    const item = data.response.body.items.item;
+    return Array.isArray(item) ? item : [item];
+  }
+  return [];
+}
+
+// ─────────────────────────────────────────────
+// 필드 추출 헬퍼
+// ─────────────────────────────────────────────
+function pickAmt(row, stage) {
+  if (!row || !stage) return 0;
+  for (const k of stage.fields) if (row[k] !== undefined) return Number(row[k]) || 0;
+  return 0;
+}
+function getCode(row) {
+  for (const k of ['FILD_CD','SECT_CD','PGM_CD','UNIT_ERND_BUSN_CD','DTL_BUSN_CD']) if (row[k]) return row[k];
+  return '';
+}
+function getName(row) {
+  for (const k of ['FILD_NM','SECT_NM','PGM_NM','UNIT_ERND_BUSN_NM','DTL_BUSN_NM','OFFC_NM']) if (row[k]) return row[k];
+  return '(명칭없음)';
+}
+const S = id => FLOW_STAGES.find(s => s.id === id);
+
+// 연도·단계별 rows 반환
+function getRows(year, stageId) {
+  const dt = S(stageId)?.dataType || 'budget';
+  return state.allData[year]?.[dt] || [];
+}
+
+// row에서 단계별 금액 추출 (추경은 derived)
+function getStageAmt(row, stageId, budgetRow) {
+  if (stageId === 'supple') {
+    const org  = pickAmt(budgetRow || row, S('org'));
+    const curr = pickAmt(budgetRow || row, S('curr'));
+    return curr - org;
+  }
+  return pickAmt(row, S(stageId));
+}
+
+// 요약용: 연도별 단계 총액
+function sumStage(year, stageId) {
+  if (stageId === 'supple') return sumStage(year,'curr') - sumStage(year,'org');
+  const rows = getRows(year, stageId);
+  return rows.reduce((s,r) => s + pickAmt(r, S(stageId)), 0);
+}
+
+function fmtAmt(n) { // 억원 단위
+  if (!n && n !== 0) return '—';
+  return (n / 1e8).toFixed(1);
+}
+
+// ═══════════════════════════════════════════════════
+//  렌더 총괄
+// ═══════════════════════════════════════════════════
+function renderAll() {
+  document.getElementById('mainTabs').style.display = 'flex';
+  renderFlowSummaryCards();
+  renderTable();
+  renderFlowChart();
+  renderTrendChart();
+  renderShareChart();
+}
+
+// ─────────────────────────────────────────────
+// 상단 재정 흐름 요약 카드
+// ─────────────────────────────────────────────
+function renderFlowSummaryCards() {
+  document.getElementById('flowSummary').style.display = 'flex';
+  const latestYear = Math.max(...state.selectedYears);
+  const totals = {};
+  FLOW_STAGES.forEach(s => { totals[s.id] = sumStage(latestYear, s.id); });
+
+  const sel = state.selectedFlows;
+
+  // 본예산
+  document.getElementById('fc-org').classList.toggle('inactive', !sel.includes('org'));
+  document.getElementById('fv-org').innerHTML = `${fmtAmt(totals.org)}<span class="flow-card-unit">억원</span>`;
+  document.getElementById('fs-org').textContent = `${latestYear}년 국회 확정`;
+
+  // 추경증감
+  document.getElementById('fc-supple').classList.toggle('inactive', !sel.includes('supple'));
+  const suppleSign = totals.supple >= 0 ? '+' : '';
+  const supplePct  = totals.org ? (totals.supple / totals.org * 100).toFixed(1) : '0.0';
+  document.getElementById('fv-supple').innerHTML = `${suppleSign}${fmtAmt(totals.supple)}<span class="flow-card-unit">억원</span>`;
+  document.getElementById('fv-supple').style.color = totals.supple >= 0 ? 'var(--c-exec)' : 'var(--danger)';
+  document.getElementById('fs-supple').textContent = `본예산 대비 ${suppleSign}${supplePct}%`;
+  document.getElementById('fs-supple').style.color  = totals.supple >= 0 ? 'var(--c-exec)' : 'var(--danger)';
+
+  // 현액
+  document.getElementById('fc-curr').classList.toggle('inactive', !sel.includes('curr'));
+  const currPct = totals.org ? ((totals.curr - totals.org) / totals.org * 100).toFixed(1) : '0.0';
+  document.getElementById('fv-curr').innerHTML = `${fmtAmt(totals.curr)}<span class="flow-card-unit">억원</span>`;
+  document.getElementById('fs-curr').textContent = `본예산 대비 ${currPct >= 0 ? '+' : ''}${currPct}%`;
+
+  // 집행
+  document.getElementById('fc-exec').classList.toggle('inactive', !sel.includes('exec'));
+  const execRate = totals.curr ? (totals.exec / totals.curr * 100) : 0;
+  const execColor= execRate >= 85 ? 'var(--c-exec)' : execRate >= 70 ? 'var(--warning)' : 'var(--danger)';
+  document.getElementById('fv-exec').innerHTML = `${fmtAmt(totals.exec)}<span class="flow-card-unit">억원</span>`;
+  document.getElementById('fs-exec').textContent = `집행률 ${execRate.toFixed(1)}%`;
+  document.getElementById('fs-exec').style.color = execColor;
+  const bar = document.getElementById('exec-bar');
+  bar.style.width = Math.min(execRate, 100) + '%';
+  bar.style.background = execColor;
+
+  // 결산
+  document.getElementById('fc-settle').classList.toggle('inactive', !sel.includes('settle'));
+  const settlePct = totals.curr ? (totals.settle / totals.curr * 100).toFixed(1) : '0.0';
+  document.getElementById('fv-settle').innerHTML = `${fmtAmt(totals.settle)}<span class="flow-card-unit">억원</span>`;
+  document.getElementById('fs-settle').textContent = `현액 대비 ${settlePct}%`;
+}
+
+// ─────────────────────────────────────────────
+// 재정 현황표
+// ─────────────────────────────────────────────
+function renderTable() {
+  const years    = state.selectedYears.slice().sort();
+  const latest   = Math.max(...years);
+  const level    = state.drillStack.length;
+  const canDrill = level < 4;
+  const sel      = state.selectedFlows;
+
+  // 최신연도 기준 행 수집
+  const budgetRows  = state.allData[latest]?.budget     || [];
+  const settleRows  = state.allData[latest]?.settlement || [];
+
+  // code → 각 단계 금액 맵
+  const codeMap = {};
+  budgetRows.forEach(row => {
+    const code = getCode(row), name = getName(row);
+    if (!codeMap[code]) codeMap[code] = { code, name, org:0, curr:0, exec:0, settle:0 };
+    codeMap[code].org  = pickAmt(row, S('org'));
+    codeMap[code].curr = pickAmt(row, S('curr'));
+    codeMap[code].exec = pickAmt(row, S('exec'));
+  });
+  settleRows.forEach(row => {
+    const code = getCode(row);
+    if (codeMap[code]) codeMap[code].settle = pickAmt(row, S('settle'));
+    else {
+      codeMap[code] = { code, name: getName(row), org:0, curr:0, exec:0, settle: pickAmt(row, S('settle')) };
+    }
+  });
+
+  const rows = Object.values(codeMap).sort((a,b) => (b.curr||b.org) - (a.curr||a.org));
+
+  // 헤더
+  const showExecRate   = sel.includes('exec')   && (sel.includes('curr') || sel.includes('org'));
+  const showSettleRate = sel.includes('settle')  && sel.includes('curr');
+
+  const colHeaders = sel.map(id => {
+    const s = S(id);
+    return `<th class="th-${id}">${s.name}<br><span style="font-weight:400;font-size:10px">백만원</span></th>`;
+  }).join('');
+
+  // 연도별 스파크라인용 데이터 (현액 기준)
+  const html = `
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th style="text-align:left">코드</th>
+            <th style="text-align:left">${LEVEL_NAMES[level]}</th>
+            ${colHeaders}
+            ${showExecRate   ? '<th style="min-width:90px">집행률</th>'  : ''}
+            ${showSettleRate ? '<th style="min-width:60px">결산률</th>' : ''}
+            <th style="min-width:68px">현액 추이</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows.map((r) => {
+            const supple   = r.curr - r.org;
+            const execRate = (r.curr || r.org) ? (r.exec / (r.curr || r.org) * 100) : 0;
+            const settleRate = r.curr ? (r.settle / r.curr * 100) : 0;
+            const erColor = execRate >= 85 ? 'var(--c-exec)' : execRate >= 70 ? 'var(--warning)' : 'var(--danger)';
+
+            // 스파크라인 (현액 연도별)
+            const sparkVals = years.map(y => {
+              const brows = state.allData[y]?.budget || [];
+              const found = brows.find(x => getCode(x) === r.code);
+              return found ? (pickAmt(found, S('curr')) || pickAmt(found, S('org'))) : 0;
+            });
+
+            const amtCells = sel.map(id => {
+              let amt = id === 'supple' ? supple : r[id] || 0;
+              const isSupple = id === 'supple';
+              const cls = isSupple ? (amt >= 0 ? 'td-pos' : 'td-neg') : '';
+              const sign = isSupple && amt > 0 ? '+' : '';
+              return `<td class="${cls}">${amt ? sign + amt.toLocaleString() : '—'}</td>`;
+            }).join('');
+
+            return `
+              <tr>
+                <td>${r.code}</td>
+                <td>${canDrill
+                  ? `<span class="drill-link" onclick="drillDown('${r.code}','${r.name.replace(/'/g,'')}')">${r.name}</span>`
+                  : r.name
+                }</td>
+                ${amtCells}
+                ${showExecRate ? `<td>
+                  <div class="rate-cell">
+                    <div class="rate-mini-bar"><div class="rate-mini-fill" style="width:${Math.min(execRate,100)}%;background:${erColor}"></div></div>
+                    <span style="color:${erColor};font-size:11px">${execRate.toFixed(1)}%</span>
+                  </div>
+                </td>` : ''}
+                ${showSettleRate ? `<td class="${settleRate>=85?'td-pos':settleRate>=70?'td-warn':'td-neg'}">${settleRate.toFixed(1)}%</td>` : ''}
+                <td>${sparkline(sparkVals)}</td>
+              </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+  document.getElementById('mainContent').innerHTML = html;
+}
+
+function sparkline(vals) {
+  if (vals.length < 2) return '—';
+  const max = Math.max(...vals), min = Math.min(...vals), range = max - min || 1;
+  const W = 60, H = 20;
+  const pts = vals.map((v,i) => `${(i/(vals.length-1))*W},${H-((v-min)/range)*H}`).join(' ');
+  const color = vals[vals.length-1] >= vals[vals.length-2] ? '#3fb950' : '#f85149';
+  return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
+    <polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linejoin="round"/>
+  </svg>`;
+}
+
+// ─────────────────────────────────────────────
+// 흐름 분석 차트 (막대 워터폴)
+// ─────────────────────────────────────────────
+function renderFlowChart() {
+  const el = document.getElementById('flowChart');
+  const latestYear = Math.max(...state.selectedYears);
+  const sel = state.selectedFlows;
+
+  const totals = {};
+  FLOW_STAGES.forEach(s => { totals[s.id] = sumStage(latestYear, s.id); });
+
+  const steps = FLOW_STAGES.filter(s => sel.includes(s.id));
+  if (!steps.length) { el.innerHTML = '<div class="empty-state"><div>재정 구분을 선택하세요</div></div>'; return; }
+
+  const W=680, H=300, PAD={top:30, right:20, bottom:60, left:80};
+  const cW=W-PAD.left-PAD.right, cH=H-PAD.top-PAD.bottom;
+  const maxAmt = Math.max(...steps.map(s => Math.abs(totals[s.id]||0)), 1);
+  const barW   = Math.min(cW/steps.length*0.55, 90);
+  const stepW  = cW / steps.length;
+  const baseY  = PAD.top + cH;
+
+  let svgContent = '';
+
+  // Y축
+  const yTicks = 4;
+  for (let i = 0; i <= yTicks; i++) {
+    const val = maxAmt * i / yTicks;
+    const y   = PAD.top + cH - (cH * i / yTicks);
+    svgContent += `<line x1="${PAD.left}" y1="${y}" x2="${PAD.left+cW}" y2="${y}" stroke="#30363d" stroke-width="0.5"/>
+      <text x="${PAD.left-7}" y="${y+4}" text-anchor="end" fill="#8b949e" font-size="10">${(val/1e8).toFixed(0)}억</text>`;
+  }
+  // 0선
+  svgContent += `<line x1="${PAD.left}" y1="${baseY}" x2="${PAD.left+cW}" y2="${baseY}" stroke="#30363d" stroke-width="1"/>`;
+
+  // 막대 & 레이블
+  steps.forEach((s, i) => {
+    const amt   = totals[s.id] || 0;
+    const pct   = Math.abs(amt) / maxAmt;
+    const barH  = Math.max(cH * pct, 2);
+    const cx    = PAD.left + i * stepW + stepW / 2;
+    const x     = cx - barW / 2;
+    const y     = amt >= 0 ? baseY - barH : baseY;
+    const color = s.cssColor;
+
+    svgContent += `
+      <rect x="${x}" y="${y}" width="${barW}" height="${barH}" fill="${color}" rx="3" opacity="0.88"
+        onmouseenter="showTT(event,'${s.name}','${latestYear}년 합계','${(amt/1e8).toFixed(1)}억원','${(amt/1e4).toFixed(0)}만원')"
+        onmouseleave="hideTT()" style="cursor:default;transition:opacity 0.1s"
+        onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.88"/>
+      <text x="${cx}" y="${y - 7}" text-anchor="middle" fill="${color}" font-size="11" font-weight="600">${(amt/1e8).toFixed(1)}억</text>
+      <text x="${cx}" y="${H - PAD.bottom + 15}" text-anchor="middle" fill="#c9d1d9" font-size="11.5" font-weight="500">${s.name}</text>`;
+
+    // 집행률 표시
+    if (s.id === 'exec' && totals.curr) {
+      const rate = (totals.exec / totals.curr * 100).toFixed(1);
+      svgContent += `<text x="${cx}" y="${y - 20}" text-anchor="middle" fill="#8b949e" font-size="9.5">집행률 ${rate}%</text>`;
+    }
+    if (s.id === 'settle' && totals.curr) {
+      const rate = (totals.settle / totals.curr * 100).toFixed(1);
+      svgContent += `<text x="${cx}" y="${y - 20}" text-anchor="middle" fill="#8b949e" font-size="9.5">현액 대비 ${rate}%</text>`;
+    }
+    // 추경 부호 표시
+    if (s.id === 'supple') {
+      const sign = amt >= 0 ? '▲' : '▼';
+      svgContent += `<text x="${cx}" y="${y - 20}" text-anchor="middle" fill="#8b949e" font-size="9.5">${sign}${Math.abs(amt/1e8).toFixed(1)}억</text>`;
+    }
+
+    // 연결 점선
+    if (i < steps.length - 1) {
+      const y1 = amt >= 0 ? baseY - barH : baseY;
+      const nextAmt = totals[steps[i+1].id] || 0;
+      const nextPct = Math.abs(nextAmt) / maxAmt;
+      const nextBarH = Math.max(cH * nextPct, 2);
+      const nextCx = PAD.left + (i+1) * stepW + stepW / 2;
+      const y2 = nextAmt >= 0 ? baseY - nextBarH : baseY;
+      svgContent += `<line x1="${cx+barW/2}" y1="${y1}" x2="${nextCx-barW/2}" y2="${y2}" stroke="#30363d" stroke-width="1" stroke-dasharray="4"/>`;
+    }
+  });
+
+  // 미집행 잔액 주석
+  const remain = totals.curr - totals.exec;
+  const remainPct = totals.curr ? (remain/totals.curr*100).toFixed(1) : 0;
+
+  el.innerHTML = `
+    <div class="chart-title">${latestYear}년 재정 흐름 분석</div>
+    <svg viewBox="0 0 ${W} ${H}" style="width:100%;max-height:300px">${svgContent}</svg>
+    <div style="display:flex;gap:20px;flex-wrap:wrap;margin-top:12px;font-size:11px;color:var(--muted)">
+      <span>📌 미집행 잔액: <strong style="color:var(--text2)">${(remain/1e8).toFixed(1)}억원</strong> (현액의 ${remainPct}%)</span>
+      <span>📌 추경 규모: <strong style="color:${totals.supple>=0?'var(--c-exec)':'var(--danger)'}">${totals.supple>=0?'+':''}${(totals.supple/1e8).toFixed(1)}억원</strong></span>
+      ${totals.settle ? `<span>📌 결산 집행률: <strong style="color:var(--c-settle)">${(totals.settle/totals.curr*100).toFixed(1)}%</strong></span>` : ''}
+    </div>
+  `;
+}
+
+// ─────────────────────────────────────────────
+// 연도별 추이 차트
+// ─────────────────────────────────────────────
+function renderTrendChart() {
+  const el    = document.getElementById('trendChart');
+  const years = state.selectedYears.slice().sort();
+  const sel   = state.selectedFlows;
+  if (years.length < 2) {
+    el.innerHTML = '<div class="empty-state"><div class="empty-sub">연도를 2개 이상 선택해야 추이를 볼 수 있습니다</div></div>';
+    return;
+  }
+
+  // 상위 분야 8개
+  const latest = Math.max(...years);
+  const bRows  = state.allData[latest]?.budget || state.allData[latest]?.settlement || [];
+  const top8   = bRows.slice().sort((a,b) => (pickAmt(b,S('curr'))||pickAmt(b,S('org'))) - (pickAmt(a,S('curr'))||pickAmt(a,S('org')))).slice(0,8);
+
+  // 첫 번째 선택 단계 기준
+  const primaryId    = sel[0];
+  const primaryStage = S(primaryId);
+
+  // 전체 연도 합산 라인 (재정 단계별)
+  const showStageLines = sel.length > 1;
+
+  const W=680, H=280, PAD={top:20, right:20, bottom:70, left:80};
+  const cW=W-PAD.left-PAD.right, cH=H-PAD.top-PAD.bottom;
+
+  let allVals = [];
+  const seriesList = [];
+
+  if (showStageLines) {
+    // 단계별 합산 라인
+    sel.forEach(id => {
+      const s = S(id);
+      const vals = years.map(y => sumStage(y, id));
+      allVals = allVals.concat(vals);
+      seriesList.push({ name: s.name, color: s.cssColor, vals, dashed: false });
+    });
+  } else {
+    // 분야별 라인
+    top8.forEach((row, si) => {
+      const code = getCode(row);
+      const vals = years.map(y => {
+        const dt = primaryStage.dataType;
+        const rows = state.allData[y]?.[dt] || [];
+        const found = rows.find(r => getCode(r) === code);
+        return found ? pickAmt(found, primaryStage) : 0;
+      });
+      allVals = allVals.concat(vals);
+      seriesList.push({ name: getName(row), color: PALETTE[si%PALETTE.length], vals, dashed: false });
+    });
+  }
+
+  const maxAmt = Math.max(...allVals, 1);
+  let svgContent = '';
+
+  // Y축
+  const yTicks = 4;
+  for (let i = 0; i <= yTicks; i++) {
+    const v = maxAmt * i / yTicks;
+    const y = PAD.top + cH - (cH * i / yTicks);
+    svgContent += `<line x1="${PAD.left}" y1="${y}" x2="${PAD.left+cW}" y2="${y}" stroke="#30363d" stroke-width="0.5"/>
+      <text x="${PAD.left-7}" y="${y+4}" text-anchor="end" fill="#8b949e" font-size="10">${(v/1e8).toFixed(0)}억</text>`;
+  }
+  // X축
+  years.forEach((y, i) => {
+    const x = PAD.left + (years.length > 1 ? cW*i/(years.length-1) : cW/2);
+    svgContent += `<text x="${x}" y="${H-PAD.bottom+15}" text-anchor="middle" fill="#8b949e" font-size="11">${y}</text>`;
+  });
+
+  // 라인 & 점
+  seriesList.forEach(series => {
+    const pts = series.vals.map((v, i) => ({
+      x: PAD.left + (years.length > 1 ? cW*i/(years.length-1) : cW/2),
+      y: PAD.top  + cH - (maxAmt ? v/maxAmt*cH : 0),
+    }));
+    const d = 'M' + pts.map(p=>`${p.x},${p.y}`).join(' L');
+    svgContent += `<path d="${d}" fill="none" stroke="${series.color}" stroke-width="2" stroke-linejoin="round" ${series.dashed?'stroke-dasharray="6"':''}/>`;
+    pts.forEach((p, i) => {
+      svgContent += `<circle cx="${p.x}" cy="${p.y}" r="3.5" fill="${series.color}"
+        onmouseenter="showTT(event,'${series.name}','${years[i]}년 (${primaryStage?.name||''})','${(series.vals[i]/1e8).toFixed(1)}억원')"
+        onmouseleave="hideTT()" style="cursor:default"/>`;
+    });
+  });
+
+  // 범례
+  let legend = '';
+  seriesList.forEach((s, i) => {
+    const lx = PAD.left + (i%5)*128;
+    const ly = H - 14 + Math.floor(i/5)*14;
+    legend += `<g transform="translate(${lx},${ly})">
+      <line x1="0" y1="5" x2="12" y2="5" stroke="${s.color}" stroke-width="2"/>
+      <text x="16" y="9" fill="#8b949e" font-size="9.5">${s.name.slice(0,9)}</text>
+    </g>`;
+  });
+
+  el.innerHTML = `
+    <div class="chart-title">연도별 추이 (${showStageLines?'재정 단계별 합산':primaryStage?.name+' 기준 상위 '+top8.length+'개 분야'})</div>
+    <svg viewBox="0 0 ${W} ${H}" style="width:100%;max-height:280px">
+      ${svgContent}
+      <g transform="translate(0,0)">${legend}</g>
+    </svg>
+  `;
+}
+
+// ─────────────────────────────────────────────
+// 구성비 도넛
+// ─────────────────────────────────────────────
+function renderShareChart() {
+  const el = document.getElementById('shareChart');
+  const latestYear = Math.max(...state.selectedYears);
+  const primaryId  = state.selectedFlows[0];
+  const ps         = S(primaryId);
+  const rows       = getRows(latestYear, primaryId);
+  const total      = rows.reduce((s,r) => s + pickAmt(r, ps), 0);
+  if (!total) { el.innerHTML='<div class="empty-state"><div>데이터 없음</div></div>'; return; }
+
+  const sorted = rows.slice().sort((a,b)=>pickAmt(b,ps)-pickAmt(a,ps));
+  const top9   = sorted.slice(0,9);
+  const others = sorted.slice(9).reduce((s,r)=>s+pickAmt(r,ps),0);
+  if (others > 0) top9.push({ _other:true, _amt:others });
+
+  const W=620,H=320,cx=165,cy=160,R=120,ri=58;
+  let svgContent='', legendItems='';
+  let angle = -Math.PI / 2;
+
+  top9.forEach((row,i) => {
+    const amt   = row._other ? row._amt : pickAmt(row, ps);
+    const name  = row._other ? '기타'  : getName(row);
+    const share = amt / total;
+    const a2    = angle + share * 2 * Math.PI;
+    const large = share > 0.5 ? 1 : 0;
+    const x1=cx+R*Math.cos(angle), y1=cy+R*Math.sin(angle);
+    const x2=cx+R*Math.cos(a2),   y2=cy+R*Math.sin(a2);
+    const xi=cx+ri*Math.cos(angle),yi=cy+ri*Math.sin(angle);
+    const xj=cx+ri*Math.cos(a2),  yj=cy+ri*Math.sin(a2);
+    const mid=(angle+a2)/2;
+    const color=PALETTE[i%PALETTE.length];
+
+    svgContent += `<path d="M${xi},${yi} L${x1},${y1} A${R},${R} 0 ${large},1 ${x2},${y2} L${xj},${yj} A${ri},${ri} 0 ${large},0 ${xi},${yi} Z"
+      fill="${color}" opacity="0.9" stroke="#0d1117" stroke-width="1.5"
+      onmouseenter="showTT(event,'${name}','${ps?.name}: ${(share*100).toFixed(1)}%','${(amt/1e8).toFixed(1)}억원')"
+      onmouseleave="hideTT()" style="cursor:default"/>`;
+    if (share > 0.04) {
+      svgContent += `<text x="${cx+(R+22)*Math.cos(mid)}" y="${cy+(R+22)*Math.sin(mid)}" text-anchor="middle" fill="#e6edf3" font-size="10.5">${(share*100).toFixed(0)}%</text>`;
+    }
+    legendItems += `<g transform="translate(0,${i*22})">
+      <rect width="11" height="11" fill="${color}" rx="2"/>
+      <text x="16" y="9.5" fill="#c9d1d9" font-size="11">${name.slice(0,13)}</text>
+      <text x="290" y="9.5" text-anchor="end" fill="#8b949e" font-size="10">${(share*100).toFixed(1)}%</text>
+    </g>`;
+    angle = a2;
+  });
+
+  el.innerHTML = `
+    <div class="chart-title">${latestYear}년 기능별 세출 구성비 (${ps?.name} 기준)</div>
+    <svg viewBox="0 0 ${W} ${H}" style="width:100%;max-height:320px">
+      ${svgContent}
+      <text x="${cx}" y="${cy-6}"  text-anchor="middle" fill="#8b949e" font-size="11">합계</text>
+      <text x="${cx}" y="${cy+13}" text-anchor="middle" fill="#e6edf3" font-size="13" font-weight="600">${(total/1e8).toFixed(0)}억</text>
+      <g transform="translate(316,16)">${legendItems}</g>
+    </svg>
+  `;
+}
+
+// ═══════════════════════════════════════════════════
+//  공통 유틸
+// ═══════════════════════════════════════════════════
+function switchTab(name) {
+  const map  = { table:'panelTable', flow:'panelFlow', trend:'panelTrend', share:'panelShare' };
+  const keys = ['table','flow','trend','share'];
+  document.querySelectorAll('.tab').forEach((t,i)      => t.classList.toggle('active', keys[i]===name));
+  document.querySelectorAll('.tab-panel').forEach(p    => p.classList.remove('active'));
+  document.getElementById(map[name]).classList.add('active');
+}
+
+function setStatus(type, msg) {
+  document.getElementById('statusDot').className = `status-dot ${type}`;
+  document.getElementById('statusText').textContent = msg;
+}
+
+function showTT(e, ...lines) {
+  const tt = document.getElementById('tooltip');
+  tt.innerHTML = lines.map((l,i)=>i===0?`<strong>${l}</strong>`:l).join('<br>');
+  tt.classList.add('visible');
+}
+function hideTT() { document.getElementById('tooltip').classList.remove('visible'); }
+document.addEventListener('mousemove', e => {
+  const tt = document.getElementById('tooltip');
+  if (tt.classList.contains('visible')) { tt.style.left=(e.clientX+14)+'px'; tt.style.top=(e.clientY-8)+'px'; }
+});
+
+// ─────────────────────────────────────────────
+// CSV 내보내기
+// ─────────────────────────────────────────────
+function exportCSV() {
+  if (!Object.keys(state.allData).length) { alert('먼저 데이터를 조회하세요.'); return; }
+  const latest = Math.max(...state.selectedYears);
+  const level  = state.drillStack.length;
+  const sel    = state.selectedFlows;
+
+  const budgetRows  = state.allData[latest]?.budget     || [];
+  const settleRows  = state.allData[latest]?.settlement || [];
+  const codeMap     = {};
+  budgetRows.forEach(r => {
+    const code=getCode(r);
+    codeMap[code]={ code, name:getName(r), org:pickAmt(r,S('org')), curr:pickAmt(r,S('curr')), exec:pickAmt(r,S('exec')), settle:0 };
+  });
+  settleRows.forEach(r => {
+    const code=getCode(r);
+    if(codeMap[code]) codeMap[code].settle=pickAmt(r,S('settle'));
+  });
+
+  const header = ['코드', `${LEVEL_NAMES[level]}명칭`];
+  sel.forEach(id => header.push(`${S(id).name}(백만원)`));
+  header.push('집행률(%)','결산률(%)');
+
+  const rows = Object.values(codeMap).map(r => {
+    const supple = r.curr - r.org;
+    const vals   = { org:r.org, supple, curr:r.curr, exec:r.exec, settle:r.settle };
+    const er     = (r.curr||r.org) ? (r.exec/(r.curr||r.org)*100).toFixed(1) : '—';
+    const sr     = r.curr ? (r.settle/r.curr*100).toFixed(1) : '—';
+    return [r.code, r.name, ...sel.map(id=>vals[id]??0), er, sr];
+  });
+
+  const csv  = [header, ...rows].map(r=>r.join(',')).join('\n');
+  const blob = new Blob(['\uFEFF'+csv], {type:'text/csv;charset=utf-8;'});
+  const a    = document.createElement('a');
+  a.href     = URL.createObjectURL(blob);
+  a.download = `재정흐름_${LEVEL_NAMES[level]}_${latest}.csv`;
+  a.click();
+}
+
+// ─────────────────────────────────────────────
+// 데모 (샘플 데이터)
+// ─────────────────────────────────────────────
+function loadDemo() {
+  const bases=[120,95,45,280,200,110,90,450,85,130,175,160,30,140,100,20];
+  // 현재연도 기준 최근 4년 + 내년(본예산만)
+  const demoYears = [THIS_YEAR-3, THIS_YEAR-2, THIS_YEAR-1, THIS_YEAR];
+  const futureYear = THIS_YEAR + 1;
+
+  demoYears.forEach((year,yi) => {
+    state.allData[year] = {};
+    const mult = 1 + yi*0.05;
+    state.allData[year].budget = FILD_CODES.map((f,i) => {
+      const org  = bases[i]*1e4*mult;
+      const curr = org * (1 + (Math.random()*0.12-0.03));
+      const exec = curr * (0.80 + Math.random()*0.15);
+      return {
+        FILD_CD:f.code, FILD_NM:f.name,
+        OFCL_BUDGET_AMT: Math.round(org),
+        CRNT_BUDGET_AMT: Math.round(curr),
+        EXCUT_AMT:       Math.round(exec),
+      };
+    });
+    // 결산은 전년도까지만 제공
+    if (year < THIS_YEAR) {
+      state.allData[year].settlement = FILD_CODES.map((f,i) => {
+        const org  = bases[i]*1e4*mult;
+        const curr = org * (1 + (Math.random()*0.12-0.03));
+        const setl = curr * (0.82 + Math.random()*0.12);
+        return { FILD_CD:f.code, FILD_NM:f.name, SETL_AMT: Math.round(setl) };
+      });
+    } else {
+      state.allData[year].settlement = [];
+    }
+    // yearMeta 반영
+    state.yearMeta[year] = {
+      budget:     'ok',
+      settlement: year < THIS_YEAR ? 'ok' : 'none',
+    };
+  });
+
+  // 내년 본예산 (당해연도 말 편성 공개 시뮬레이션)
+  const nextMult = 1 + demoYears.length * 0.05;
+  state.allData[futureYear] = {
+    budget: FILD_CODES.map((f,i) => {
+      const org = bases[i]*1e4*nextMult;
+      return { FILD_CD:f.code, FILD_NM:f.name, OFCL_BUDGET_AMT:Math.round(org), CRNT_BUDGET_AMT:Math.round(org), EXCUT_AMT:0 };
+    }),
+    settlement: [],
+  };
+  state.yearMeta[futureYear] = { budget:'ok', settlement:'none' };
+
+  state.selectedYears = [THIS_YEAR-1, THIS_YEAR];
+  renderYearGrid();
+  setYearDetectStatus('done', `${demoYears.length+1}개 연도 샘플 데이터 로드 완료`);
+  renderAll();
+  setStatus('ok',`[데모] ${THIS_YEAR-3}~${futureYear}년 샘플 데이터 — 실제 API 키 입력 후 연도탐지 시 실데이터 조회`);
+}
+
+// ─────────────────────────────────────────────
+// API 키 localStorage 관리
+// ─────────────────────────────────────────────
+const LS_KEY = 'fiscal_api_key';
+
+function loadSavedKey() {
+  return localStorage.getItem(LS_KEY) || '';
+}
+
+function saveKey(key) {
+  localStorage.setItem(LS_KEY, key);
+}
+
+function clearSavedKey() {
+  localStorage.removeItem(LS_KEY);
+  document.getElementById('apiKey').value = '';
+  showKeyInputView();
+  setStatus('', '새 인증키를 입력해주세요.');
+}
+
+// 저장된 키 있을 때: 입력폼 숨기고 "저장됨" 뷰 표시
+function showKeySavedView(key) {
+  document.getElementById('keyInputView').style.display  = 'none';
+  document.getElementById('keySavedView').style.display  = 'flex';
+  // 마스킹: 앞 4자 + *** + 뒤 4자
+  const masked = key.length > 8
+    ? key.slice(0,4) + '·'.repeat(Math.max(4, key.length-8)) + key.slice(-4)
+    : '·'.repeat(key.length);
+  document.getElementById('keySavedMask').textContent = masked;
+}
+
+// 미저장 상태: 입력폼 표시
+function showKeyInputView() {
+  document.getElementById('keyInputView').style.display  = 'block';
+  document.getElementById('keySavedView').style.display  = 'none';
+}
+
+// 현재 유효한 API 키 반환 (저장된 것 우선, 없으면 입력중인 것)
+function getApiKey() {
+  return loadSavedKey() || document.getElementById('apiKey').value.trim();
+}
+
+// ─────────────────────────────────────────────
+// 부트
+// ─────────────────────────────────────────────
+window.onload = function() {
+  init();
+
+  const keyInput    = document.getElementById('apiKey');
+  const indicator   = document.getElementById('keySaveIndicator');
+  let detectTimer   = null;
+  let saveTimer     = null;
+
+  // ── 저장된 키 복원
+  const saved = loadSavedKey();
+  if (saved) {
+    keyInput.value = saved;
+    showKeySavedView(saved);
+    // 키 있으면 페이지 로드 즉시 연도 탐지 시작
+    setTimeout(detectAvailableYears, 400);
+  } else {
+    showKeyInputView();
+  }
+
+  // ── 입력 중: 1.2초 멈추면 저장 + 탐지
+  keyInput.addEventListener('input', () => {
+    clearTimeout(detectTimer);
+    clearTimeout(saveTimer);
+    indicator.textContent = '';
+    indicator.style.opacity = '0';
+
+    const val = keyInput.value.trim();
+    if (val.length > 10) {
+      saveTimer = setTimeout(() => {
+        saveKey(val);
+        showKeySavedView(val);
+        indicator.textContent = '✓';
+        indicator.style.color = 'var(--accent)';
+        indicator.style.opacity = '1';
+        // 저장 직후 연도 탐지
+        if (!state.yearDetecting) detectAvailableYears();
+      }, 1200);
+    }
+  });
+
+  // ── 포커스 아웃: 즉시 저장 + 탐지
+  keyInput.addEventListener('blur', () => {
+    clearTimeout(saveTimer);
+    const val = keyInput.value.trim();
+    if (val.length > 10) {
+      saveKey(val);
+      showKeySavedView(val);
+      if (!state.yearDetecting) detectAvailableYears();
+    }
+  });
+
+  // ── 샘플 버튼
+  const container = document.querySelector('[style="padding:0 16px;margin-top:auto"]');
+  if (container) {
+    const demoBtn = document.createElement('button');
+    demoBtn.className = 'btn-secondary';
+    demoBtn.style.cssText = 'margin-top:8px;font-size:11px;color:var(--accent3);border-color:rgba(240,136,62,0.35)';
+    demoBtn.textContent = '🎭 샘플 데이터로 미리보기';
+    demoBtn.onclick = loadDemo;
+    container.appendChild(demoBtn);
+  }
+};
+</script>
+</body>
+</html>
