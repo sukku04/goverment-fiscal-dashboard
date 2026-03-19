@@ -1,0 +1,51 @@
+name: 재정데이터 자동 수집
+
+on:
+  # 매월 1일 오전 7시 (KST) = UTC 전날 22:00
+  schedule:
+    - cron: '0 22 1 * *'
+  # 수동 실행 (Actions 탭에서 Run workflow)
+  workflow_dispatch:
+    inputs:
+      years:
+        description: '수집 연도 (쉼표 구분, 예: 2023,2024,2025)'
+        required: false
+        default: ''
+      gov_types:
+        description: '정부 구분 (central,local 또는 central 만)'
+        required: false
+        default: 'central,local'
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # data/ 폴더 커밋용
+
+    steps:
+      - name: 저장소 체크아웃
+        uses: actions/checkout@v4
+
+      - name: Python 설정
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 의존성 설치
+        run: pip install requests
+
+      - name: 재정 데이터 수집
+        env:
+          FISCAL_API_KEY: ${{ secrets.FISCAL_API_KEY }}
+          YEARS:      ${{ github.event.inputs.years }}
+          GOV_TYPES:  ${{ github.event.inputs.gov_types || 'central,local' }}
+        run: python scripts/fetch_fiscal.py
+
+      - name: data/ 폴더 커밋 & 푸시
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/
+          git diff --staged --quiet || \
+            git commit -m "📊 재정데이터 업데이트 $(date '+%Y-%m-%d')" && \
+            git push

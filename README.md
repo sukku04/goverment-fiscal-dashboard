@@ -1,2 +1,1 @@
-# goverment-fiscal-dashboard
- 열린재정 기능별 세출 분석 대시보드
+# 열린재정 수집 데이터가 여기 저장됩니다. GitHub Actions가 자동 생성합니다.
