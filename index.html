@@ -1024,7 +1024,7 @@ async function fetchData() {
           </div>
         </div>`;
     } else {
-      setStatus('ok', \`\${state.selectedYears.join(', ')}년 · \${LEVEL_NAMES[state.drillStack.length]} 수준 · \${rowCount}건 조회 완료\`);
+      setStatus('ok', `${state.selectedYears.join(', ')}년 · ${LEVEL_NAMES[state.drillStack.length]} 수준 · ${rowCount}건 조회 완료`);
     }
   } catch(e) {
     const msg = e.message || '알 수 없는 오류';
