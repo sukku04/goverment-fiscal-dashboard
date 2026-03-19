@@ -328,6 +328,19 @@
     position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
     font-size: 12px; pointer-events: none; transition: opacity 0.3s;
   }
+  .key-save-btn {
+    width: 100%; padding: 8px; border-radius: 6px; border: none;
+    background: var(--accent); color: #0d1117;
+    font-family: inherit; font-size: 13px; font-weight: 600;
+    cursor: pointer; transition: all 0.15s; margin-top: 6px;
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+  }
+  .key-save-btn:hover { background: #4dca60; }
+  .key-save-btn:disabled { background: var(--border); color: var(--muted); cursor: not-allowed; }
+  .key-save-btn.saved {
+    background: rgba(63,185,80,0.15); color: var(--accent);
+    border: 1px solid rgba(63,185,80,0.4); cursor: default;
+  }
 
   @media (max-width: 900px) {
     .layout { flex-direction: column; height: auto; }
@@ -374,11 +387,18 @@
     <!-- 입력 폼 (미저장 상태) -->
     <div id="keyInputView">
       <div class="key-input-row">
-        <input type="password" id="apiKey" placeholder="인증키를 입력하면 자동 저장됩니다" autocomplete="off">
+        <input type="password" id="apiKey"
+               placeholder="인증키 붙여넣기 후 저장 버튼 클릭"
+               autocomplete="off"
+               onkeydown="if(event.key==='Enter') saveKeyNow()">
         <span class="key-save-indicator" id="keySaveIndicator" style="opacity:0"></span>
       </div>
-      <div class="key-hint">
-        브라우저에만 저장 — 코드·GitHub에 기록되지 않습니다<br>
+      <!-- ★ 명시적 저장 버튼 -->
+      <button class="key-save-btn" id="keySaveBtn" onclick="saveKeyNow()">
+        🔒 인증키 저장
+      </button>
+      <div class="key-hint" style="margin-top:6px">
+        브라우저에만 저장 — 코드·GitHub에 기록 안 됨<br>
         <a href="https://www.openfiscaldata.go.kr/op/ko/ds/UOPKODSA06" target="_blank">열린재정 Open API</a>에서 발급
       </div>
     </div>
@@ -1766,38 +1786,55 @@ function loadDemo() {
 const LS_KEY = 'fiscal_api_key';
 
 function loadSavedKey() {
-  return localStorage.getItem(LS_KEY) || '';
+  try { return localStorage.getItem(LS_KEY) || ''; }
+  catch(e) { return ''; }
 }
 
 function saveKey(key) {
-  localStorage.setItem(LS_KEY, key);
+  try { localStorage.setItem(LS_KEY, key); } catch(e) {}
+}
+
+// ★ 명시적 저장 버튼 핸들러
+function saveKeyNow() {
+  const val = document.getElementById('apiKey').value.trim();
+  if (!val) {
+    alert('인증키를 입력해주세요.');
+    return;
+  }
+  saveKey(val);
+  showKeySavedView(val);
+  setStatus('ok', '인증키가 저장됐습니다. 연도 탐지를 시작합니다...');
+  // 저장 즉시 연도 탐지
+  if (!state.yearDetecting) detectAvailableYears();
 }
 
 function clearSavedKey() {
-  localStorage.removeItem(LS_KEY);
+  try { localStorage.removeItem(LS_KEY); } catch(e) {}
   document.getElementById('apiKey').value = '';
   showKeyInputView();
-  setStatus('', '새 인증키를 입력해주세요.');
+  setStatus('', '새 인증키를 입력하고 저장 버튼을 눌러주세요.');
 }
 
-// 저장된 키 있을 때: 입력폼 숨기고 "저장됨" 뷰 표시
+// 저장됨 뷰: 입력폼 숨기고 "✅ 저장됨" 표시
 function showKeySavedView(key) {
-  document.getElementById('keyInputView').style.display  = 'none';
-  document.getElementById('keySavedView').style.display  = 'flex';
-  // 마스킹: 앞 4자 + *** + 뒤 4자
+  document.getElementById('keyInputView').style.display = 'none';
+  document.getElementById('keySavedView').style.display = 'flex';
   const masked = key.length > 8
-    ? key.slice(0,4) + '·'.repeat(Math.max(4, key.length-8)) + key.slice(-4)
+    ? key.slice(0,4) + '·'.repeat(Math.max(4, key.length - 8)) + key.slice(-4)
     : '·'.repeat(key.length);
   document.getElementById('keySavedMask').textContent = masked;
 }
 
-// 미저장 상태: 입력폼 표시
+// 입력 뷰: 저장됨 숨기고 입력폼 표시
 function showKeyInputView() {
-  document.getElementById('keyInputView').style.display  = 'block';
-  document.getElementById('keySavedView').style.display  = 'none';
+  document.getElementById('keyInputView').style.display = 'block';
+  document.getElementById('keySavedView').style.display = 'none';
+  // 버튼 초기화
+  const btn = document.getElementById('keySaveBtn');
+  if (btn) { btn.textContent = '🔒 인증키 저장'; btn.className = 'key-save-btn'; btn.disabled = false; }
 }
 
-// 현재 유효한 API 키 반환 (저장된 것 우선, 없으면 입력중인 것)
+// 현재 유효한 API 키 반환
 function getApiKey() {
   return loadSavedKey() || document.getElementById('apiKey').value.trim();
 }
@@ -1808,53 +1845,16 @@ function getApiKey() {
 window.onload = function() {
   init();
 
-  const keyInput    = document.getElementById('apiKey');
-  const indicator   = document.getElementById('keySaveIndicator');
-  let detectTimer   = null;
-  let saveTimer     = null;
-
-  // ── 저장된 키 복원
+  // ── 저장된 키 복원: localStorage → 자동으로 저장됨 뷰 전환
   const saved = loadSavedKey();
   if (saved) {
-    keyInput.value = saved;
+    document.getElementById('apiKey').value = saved;
     showKeySavedView(saved);
-    // 키 있으면 페이지 로드 즉시 연도 탐지 시작
-    setTimeout(detectAvailableYears, 400);
+    setStatus('loading', '저장된 인증키로 연도 탐지 중...');
+    setTimeout(detectAvailableYears, 500);
   } else {
     showKeyInputView();
   }
-
-  // ── 입력 중: 1.2초 멈추면 저장 + 탐지
-  keyInput.addEventListener('input', () => {
-    clearTimeout(detectTimer);
-    clearTimeout(saveTimer);
-    indicator.textContent = '';
-    indicator.style.opacity = '0';
-
-    const val = keyInput.value.trim();
-    if (val.length > 10) {
-      saveTimer = setTimeout(() => {
-        saveKey(val);
-        showKeySavedView(val);
-        indicator.textContent = '✓';
-        indicator.style.color = 'var(--accent)';
-        indicator.style.opacity = '1';
-        // 저장 직후 연도 탐지
-        if (!state.yearDetecting) detectAvailableYears();
-      }, 1200);
-    }
-  });
-
-  // ── 포커스 아웃: 즉시 저장 + 탐지
-  keyInput.addEventListener('blur', () => {
-    clearTimeout(saveTimer);
-    const val = keyInput.value.trim();
-    if (val.length > 10) {
-      saveKey(val);
-      showKeySavedView(val);
-      if (!state.yearDetecting) detectAvailableYears();
-    }
-  });
 
   // ── 샘플 버튼
   const container = document.querySelector('[style="padding:0 16px;margin-top:auto"]');
