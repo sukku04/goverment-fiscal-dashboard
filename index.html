@@ -460,7 +460,7 @@
     <div style="display:flex;gap:6px;margin-top:8px">
       <button class="btn-secondary" onclick="selectAllYears()" style="font-size:11px;padding:5px">전체</button>
       <button class="btn-secondary" onclick="clearYears()"     style="font-size:11px;padding:5px">현재연도</button>
-      <button class="btn-secondary" onclick="selectRecentYears(3)" style="font-size:11px;padding:5px">최근3년</button>
+      <button class="btn-secondary" onclick="selectRecentYears()" style="font-size:11px;padding:5px">최근5년</button>
     </div>
   </div>
 
@@ -578,13 +578,15 @@
 // ═══════════════════════════════════════════════════
 //  상수
 // ═══════════════════════════════════════════════════
-// 연도는 하드코딩하지 않고 현재연도 기준으로 동적 생성 + API 탐지로 갱신
-const FISCAL_START = 2015; // 열린재정 데이터 시작연도
-const THIS_YEAR    = new Date().getFullYear();
-// 현재연도+1까지 후보 생성 (내년 본예산은 당해연도 말에 공개되므로 여유 확보)
+// 연도 설정
+const THIS_YEAR      = new Date().getFullYear();
+const SHOW_YEARS     = 6;   // 그리드에 표시할 연도 수 (현재연도 포함 과거 N년 + 내년)
+const DEFAULT_SELECT = 5;   // 기본 선택 연도 수
+
+// 그리드 후보: 현재연도 기준 과거 (SHOW_YEARS-1)년 + 내년 1개
 function buildCandidateYears() {
   const years = [];
-  for (let y = FISCAL_START; y <= THIS_YEAR + 1; y++) years.push(y);
+  for (let y = THIS_YEAR - (SHOW_YEARS - 1); y <= THIS_YEAR + 1; y++) years.push(y);
   return years;
 }
 const LEVEL_NAMES  = ['분야','부문','프로그램','단위사업','세부사업'];
@@ -671,7 +673,7 @@ const PRESETS = {
 // ═══════════════════════════════════════════════════
 let state = {
   govType:       'central',
-  selectedYears: [THIS_YEAR - 2, THIS_YEAR - 1, THIS_YEAR],
+  selectedYears: Array.from({length: DEFAULT_SELECT}, (_,i) => THIS_YEAR - (DEFAULT_SELECT-1) + i),
   selectedFlows: ['org','supple','curr','exec','settle'],
   drillStack:    [],
   allData:       {},
@@ -803,8 +805,7 @@ function clearYears() {
   renderYearGrid();
 }
 
-function selectRecentYears(n) {
-  // 데이터 확인된 최근 N년, 없으면 후보 최근 N년
+function selectRecentYears(n = DEFAULT_SELECT) {
   const withData = getCandidateYears().filter(y => {
     const m = state.yearMeta[y] || {};
     return m.budget === 'ok' || m.settlement === 'ok';
@@ -822,50 +823,43 @@ async function detectAvailableYears() {
   if (!apiKey || state.yearDetecting) return;
   state.yearDetecting = true;
 
-  const candidates = getCandidateYears();
+  const candidates = getCandidateYears();   // 최근 SHOW_YEARS+1개만
   const govType    = state.govType;
+  const epBudget   = ENDPOINTS[`${govType}_budget`];
+  const epSettle   = ENDPOINTS[`${govType}_settlement`];
 
-  // 탐지 전 상태: 후보 연도 모두 'checking'
+  // 전체 'checking' 표시
   candidates.forEach(y => {
-    if (!state.yearMeta[y]) state.yearMeta[y] = {};
-    state.yearMeta[y].budget     = 'checking';
-    state.yearMeta[y].settlement = 'checking';
+    state.yearMeta[y] = { budget:'checking', settlement:'checking' };
   });
   renderYearGrid();
-  setYearDetectStatus('detecting', `${candidates.length}개 연도 데이터 확인 중...`);
+  setYearDetectStatus('detecting', `${candidates.length}개 연도 확인 중...`);
 
-  // 연도별 probe: pSize=1로 최소 호출 (빠른 확인)
-  const epBudget = ENDPOINTS[`${govType}_budget`];
-  const epSettle = ENDPOINTS[`${govType}_settlement`];
+  // 모든 후보를 한꺼번에 병렬 처리 (소규모라 안전)
+  await Promise.all(candidates.map(async (year) => {
+    const [budgetOk, settleOk] = await Promise.all([
+      probeYear(apiKey, epBudget, year),
+      probeYear(apiKey, epSettle, year),
+    ]);
+    state.yearMeta[year] = {
+      budget:     budgetOk ? 'ok' : 'none',
+      settlement: settleOk ? 'ok' : 'none',
+    };
+    renderYearGrid(); // 각 연도 결과 즉시 반영
+  }));
 
-  // 연도를 4개씩 묶어서 병렬 처리 (API 과부하 방지)
-  const CHUNK = 4;
-  for (let i = 0; i < candidates.length; i += CHUNK) {
-    const chunk = candidates.slice(i, i + CHUNK);
-    await Promise.all(chunk.map(async (year) => {
-      const [budgetOk, settleOk] = await Promise.all([
-        probeYear(apiKey, epBudget, year),
-        probeYear(apiKey, epSettle, year),
-      ]);
-      if (!state.yearMeta[year]) state.yearMeta[year] = {};
-      state.yearMeta[year].budget     = budgetOk ? 'ok' : 'none';
-      state.yearMeta[year].settlement = settleOk ? 'ok' : 'none';
-    }));
-    renderYearGrid(); // 청크마다 UI 업데이트 (점진적 표시)
-  }
+  // 데이터 있는 연도 중 최근 DEFAULT_SELECT년 자동 선택
+  const available = candidates.filter(y =>
+    state.yearMeta[y]?.budget === 'ok' || state.yearMeta[y]?.settlement === 'ok'
+  );
+  const maxAvail = available.length ? Math.max(...available) : THIS_YEAR;
 
-  // 탐지 결과 요약
-  const available = candidates.filter(y => state.yearMeta[y]?.budget === 'ok' || state.yearMeta[y]?.settlement === 'ok');
-  const maxAvail  = available.length ? Math.max(...available) : THIS_YEAR;
-
-  // 기본 선택: 탐지된 최근 3개년
-  const recent3 = available.slice(-3);
-  if (recent3.length > 0) {
-    state.selectedYears = recent3;
+  if (available.length > 0) {
+    state.selectedYears = available.slice(-DEFAULT_SELECT);
   }
 
   renderYearGrid();
-  setYearDetectStatus('done', `${available.length}개 연도 데이터 확인 완료 (최신: ${maxAvail}년)`);
+  setYearDetectStatus('done', `확인 완료 — 데이터 있는 연도: ${available.length}개 (최신: ${maxAvail}년)`);
   state.yearDetecting = false;
 }
 
@@ -1678,7 +1672,7 @@ function loadDemo() {
   };
   state.yearMeta[futureYear] = { budget:'ok', settlement:'none' };
 
-  state.selectedYears = [THIS_YEAR-1, THIS_YEAR];
+  state.selectedYears = Array.from({length: DEFAULT_SELECT}, (_,i) => THIS_YEAR - (DEFAULT_SELECT-1) + i);
   renderYearGrid();
   setYearDetectStatus('done', `${demoYears.length+1}개 연도 샘플 데이터 로드 완료`);
   renderAll();
